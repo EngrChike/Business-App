@@ -57,19 +57,73 @@ export default function Reports({ onBack }) {
       return;
     }
 
-    const targetAmount = sale.total_amount || sale.total_price || 0;
+    const currentAmount = Number(sale.total_amount || sale.total_price || 0);
     const clientIdentity = sale.customer_name || t('walking_customer') || "Walking Customer";
     
-    const confirmSettle = window.confirm(
-      `${t('confirm_settle_prefix') || 'Confirm verified cash/bank receipt of'} ${Number(targetAmount).toLocaleString()} FCFA ${t('confirm_settle_mid') || 'from'} ${clientIdentity}?`
+    // 1. Ask if the money is complete
+    const isComplete = window.confirm(
+      `💰 Debtor: ${clientIdentity}\nBalance Due: ${currentAmount.toLocaleString()} FCFA\n\nIs the payment COMPLETE? \n[Click OK for YES, Cancel for PARTIAL payment]`
     );
-    if (!confirmSettle) return;
+
+    let updateData = {};
+
+    if (isComplete) {
+      // --- FULL SETTLEMENT WORKFLOW ---
+      const confirmFull = window.confirm(
+        `Are you sure you want to fully settle this debt? Press OK to confirm.`
+      );
+      if (!confirmFull) return;
+
+      updateData = { payment_status: 'paid', is_verified: true };
+    } {
+      // --- PARTIAL SETTLEMENT WORKFLOW ---
+      const userInput = window.prompt(
+        `Enter the amount paid by ${clientIdentity} (Current total: ${currentAmount.toLocaleString()} FCFA):`
+      );
+
+      // If user clicked cancel on prompt or left it empty
+      if (userInput === null || userInput.trim() === "") return;
+
+      const amountPaid = Number(userInput);
+
+      if (isNaN(amountPaid) || amountPaid <= 0) {
+        alert("❌ Invalid amount. Please enter a valid number greater than 0.");
+        return;
+      }
+
+      if (amountPaid > currentAmount) {
+        alert(`❌ Error: Amount paid (${amountPaid.toLocaleString()} FCFA) cannot be higher than the remaining balance (${currentAmount.toLocaleString()} FCFA).`);
+        return;
+      }
+
+      const remainingBalance = currentAmount - amountPaid;
+
+      // Calculate state changes
+      if (remainingBalance === 0) {
+        const confirmFullPartial = window.confirm(
+          `This amount will fully clear the debt. Press OK to confirm.`
+        );
+        if (!confirmFullPartial) return;
+        updateData = { payment_status: 'paid', is_verified: true, total_amount: 0, total_price: 0 };
+      } else {
+        const confirmPartial = window.confirm(
+          `Confirm payment of ${amountPaid.toLocaleString()} FCFA.\nNew remaining balance will be: ${remainingBalance.toLocaleString()} FCFA.\n\nPress OK to confirm.`
+        );
+        if (!confirmPartial) return;
+
+        // Keep status as debt but drop the remaining balance calculation down
+        updateData = { 
+          total_amount: remainingBalance,
+          total_price: remainingBalance
+        };
+      }
+    }
     
     try {
       setLoading(true);
       const { error } = await supabase
         .from('sales')
-        .update({ payment_status: 'paid', is_verified: true })
+        .update(updateData)
         .eq('id', sale.id);
       
       if (error) throw error;
