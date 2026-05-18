@@ -174,11 +174,15 @@ export default function AdminDashboard() {
                 </div>
                 
                 <div className="pt-2 flex flex-col gap-1">
+                  {/* MOBILE COMPLIANT NATIVE LANGUAGE SWITCH */}
                   <button 
-                    onClick={() => toggleLanguage()}
-                    className="sm:hidden flex w-full text-left px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 rounded-xl transition-colors"
+                    onClick={() => {
+                      toggleLanguage();
+                      setIsProfileOpen(false); // Instantly closes drop panel on responsive taps
+                    }}
+                    className="sm:hidden flex w-full text-left px-3 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 rounded-xl transition-colors items-center gap-2"
                   >
-                    🌐 Switch Language ({language === 'en' ? 'FR' : 'EN'})
+                    <span>🌐</span> {language === 'en' ? 'Passer en Français (FR)' : 'Switch to English (EN)'}
                   </button>
                   
                   <button 
