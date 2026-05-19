@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useLanguage } from '../../context/LanguageContext.jsx'; // Centralized translation wrapper hook
+import { useLanguage } from '../../context/LanguageContext.jsx'; 
 import { supabase } from '../../api/supabaseClient';
 import { useAuth } from "../../context/AuthContext"; 
 import { saveSaleOffline } from '../../utils/offlineStorage.js';
 
 export default function Sales({ onBack }) {
   const { user } = useAuth();
-  const { t } = useLanguage(); // Uses the same global state language engine
+  const { t } = useLanguage(); 
   
   const [inventory, setInventory] = useState([]);
   const [dailySales, setDailySales] = useState([]);
@@ -29,15 +29,39 @@ export default function Sales({ onBack }) {
         setIsProfileOpen(false);
       }
     }
+
+    // Auto-refresh layout pipeline handler when background manager finishes syncing
+    const handleAutoSyncRefresh = () => {
+      fetchInv();
+      fetchDailySales();
+    };
+
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    window.addEventListener('sales-synced', handleAutoSyncRefresh);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener('sales-synced', handleAutoSyncRefresh);
+    };
   }, [user]);
 
   const fetchInv = async () => {
     try {
+      if (!navigator.onLine) {
+        // Fallback to local storage matrix cache if offline
+        const offlineCache = localStorage.getItem('monbilan_cached_inventory');
+        if (offlineCache) {
+          setInventory(JSON.parse(offlineCache));
+        }
+        return;
+      }
+
       const { data, error } = await supabase.from('inventory').select('*').gt('stock_quantity', 0);
       if (error) throw error;
       setInventory(data || []);
+      
+      // Update fallback layer dynamically while online
+      localStorage.setItem('monbilan_cached_inventory', JSON.stringify(data || []));
     } catch (err) {
       console.error("Inventory Fetch Error:", err.message);
     }
@@ -91,7 +115,6 @@ export default function Sales({ onBack }) {
 
     const activeStaffName = user.user_metadata?.full_name || user.full_name || user.email || 'System Terminal';
     
-    // Construct uniform baseline payload structure
     const salePayload = {
       product_id: confirmation.product_id,
       quantity: confirmation.quantity,
@@ -109,11 +132,10 @@ export default function Sales({ onBack }) {
     };
 
     try {
-      // Offline fallback check interceptor
       if (!navigator.onLine) {
         await saveSaleOffline(salePayload);
         executeLocalStateDeduction();
-        alert("⚠️ Mode Hors-ligne : Vente enregistrée en local ! Elle se synchronisera dès que le réseau reviendra.");
+        alert("⚠️ Mode Hors-ligne : Vente enregistrée en local !");
         return;
       }
 
@@ -130,14 +152,13 @@ export default function Sales({ onBack }) {
         if (stockError) throw stockError;
       }
 
-      // Safe live refresh
       await fetchInv();
       await fetchDailySales();
       clearFormFields();
       alert(t('alert_sale_recorded') || "Sale Recorded Successfully!");
 
     } catch (error) {
-      console.error("Online execution broken, moving to local store fallback storage:", error);
+      console.error("Online push failed, falling back to local database engine:", error);
       try {
         await saveSaleOffline(salePayload);
         executeLocalStateDeduction();
@@ -151,15 +172,18 @@ export default function Sales({ onBack }) {
   };
 
   const executeLocalStateDeduction = () => {
-    // Process client UI inventory adjustments directly in state if server drops mid-shift
-    setInventory(prev => prev.map(item => {
-      if (item.id === confirmation.product_id) {
-        return { ...item, stock_quantity: Math.max(0, item.stock_quantity - confirmation.quantity) };
-      }
-      return item;
-    }).filter(item => item.stock_quantity > 0));
+    setInventory(prev => {
+      const parsedUpdatedInv = prev.map(item => {
+        if (item.id === confirmation.product_id) {
+          return { ...item, stock_quantity: Math.max(0, item.stock_quantity - confirmation.quantity) };
+        }
+        return item;
+      }).filter(item => item.stock_quantity > 0);
+      
+      localStorage.setItem('monbilan_cached_inventory', JSON.stringify(parsedUpdatedInv));
+      return parsedUpdatedInv;
+    });
 
-    // Append fake visual log item directly into local viewport history tracker
     const localVisualLogItem = {
       id: 'local_temp_' + Date.now(),
       total_amount: confirmation.total,
@@ -187,7 +211,7 @@ export default function Sales({ onBack }) {
     <div className="min-h-screen bg-[#F4F3ED] text-[#111111] p-4 md:p-8 font-sans antialiased pb-24">
       <div className="max-w-xl mx-auto">
         
-        {/* --- PREMIUM APP REGISTRATION HEADER --- */}
+        {/* HEADER */}
         <div className="flex justify-between items-center mb-6 mt-2 relative">
           <div>
             <button onClick={onBack} className="text-[#3F51B5] font-bold text-xs tracking-wider uppercase mb-1 block hover:opacity-80 transition-opacity">
@@ -198,7 +222,6 @@ export default function Sales({ onBack }) {
             </h1>
           </div>
 
-          {/* RIGHT FLOATING USER HEADER AVATAR MENU */}
           <div className="relative" ref={dropdownRef}>
             <button 
               onClick={() => setIsProfileOpen(!isProfileOpen)}
@@ -226,7 +249,7 @@ export default function Sales({ onBack }) {
           </div>
         </div>
         
-        {/* INPUT TRANSACTION REGISTRATION CARD FORM */}
+        {/* INPUT FORM */}
         <div className="bg-white p-6 md:p-8 rounded-[28px] shadow-sm border border-slate-100 mb-6">
           <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2 tracking-wider">
             {t('choose_item') || 'Choose Item'}
@@ -275,7 +298,7 @@ export default function Sales({ onBack }) {
           </button>
         </div>
 
-        {/* DAILY PERFORMANCE TRACKING SHIFT SUMMARY */}
+        {/* PERFORMANCE SUMMARY */}
         <div className="bg-white rounded-[28px] border border-slate-100 shadow-sm overflow-hidden">
           <div className="p-5 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
             <h2 className="font-extrabold text-xs text-slate-400 uppercase tracking-wider">
@@ -312,7 +335,7 @@ export default function Sales({ onBack }) {
           </div>
         </div>
 
-        {/* COMFORT CONFIRMATION OVERLAY DRAWER MODAL */}
+        {/* MODAL */}
         {confirmation && (
           <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
             <div className="bg-white w-full max-w-sm rounded-[28px] p-8 text-center shadow-2xl animate-in zoom-in-95 duration-150">

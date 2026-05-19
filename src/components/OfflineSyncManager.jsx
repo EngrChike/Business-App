@@ -16,7 +16,10 @@ export default function OfflineSyncManager() {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    if (navigator.onLine) syncOfflineDataToServer();
+    if (navigator.onLine) {
+      syncOfflineDataToServer();
+      cacheInventoryLocally(); // Cache active inventory on boot if online
+    }
 
     return () => {
       window.removeEventListener('online', handleOnline);
@@ -24,20 +27,41 @@ export default function OfflineSyncManager() {
     };
   }, []);
 
+  // Back up inventory data into localStorage for offline dropdown fallback visibility
+  const cacheInventoryLocally = async () => {
+    try {
+      const { data, error } = await supabase.from('inventory').select('*').gt('stock_quantity', 0);
+      if (!error && data) {
+        localStorage.setItem('monbilan_cached_inventory', JSON.stringify(data));
+      }
+    } catch (err) {
+      console.error("Failed to cache inventory structure:", err);
+    }
+  };
+
   const syncOfflineDataToServer = async () => {
     try {
       const pendingRecords = await getPendingSales();
       if (!pendingRecords || pendingRecords.length === 0) return;
 
       setSyncing(true);
+      let syncCount = 0;
+
       for (const sale of pendingRecords) {
         const { local_id, is_offline_record, ...cleanSaleData } = sale;
         const { error } = await supabase.from('sales').insert([cleanSaleData]);
         if (!error) {
           await clearSyncedSale(local_id);
+          syncCount++;
         } else {
           console.error("Failed to push batch record:", error.message);
         }
+      }
+
+      // If records were successfully updated, broadcast an internal event to refresh views
+      if (syncCount > 0) {
+        window.dispatchEvent(new Event('sales-synced'));
+        await cacheInventoryLocally(); // Refresh cached numbers post-sync
       }
     } catch (err) {
       console.error("Offline sync routine failed:", err);
