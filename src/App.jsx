@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './api/supabaseClient';
 import Dashboard from './pages/Dashboard';
-
-// Confirmed path based on your Explorer screenshot
 import Login from './views/shared/Login.jsx'; 
-
+import OfflineSyncManager from './components/OfflineSyncManager.jsx';
 import './index.css'; 
 
 export default function App() {
@@ -16,7 +14,7 @@ export default function App() {
     const getInitialSession = async () => {
       const { data: { session: currentSession } } = await supabase.auth.getSession();
       setSession(currentSession);
-      loading === true && setLoading(false);
+      if (loading) setLoading(false);
     };
 
     getInitialSession();
@@ -44,6 +42,7 @@ export default function App() {
   // --- MAIN NAVIGATION ---
   return (
     <div className="App min-h-screen bg-slate-50">
+      <OfflineSyncManager /> {/* Global ambient sync supervisor */}
       {!session ? (
         /* Show Login if no user is authenticated */
         <Login />

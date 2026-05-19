@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useLanguage } from '../../context/LanguageContext.jsx'; // Centralized translation wrapper hook
 import { supabase } from '../../api/supabaseClient';
 import { useAuth } from "../../context/AuthContext"; 
+import { saveSaleOffline } from '../../utils/offlineStorage.js';
 
 export default function Sales({ onBack }) {
   const { user } = useAuth();
@@ -88,25 +89,35 @@ export default function Sales({ onBack }) {
     if (!confirmation || !user || loading) return;
     setLoading(true);
 
+    const activeStaffName = user.user_metadata?.full_name || user.full_name || user.email || 'System Terminal';
+    
+    // Construct uniform baseline payload structure
+    const salePayload = {
+      product_id: confirmation.product_id,
+      quantity: confirmation.quantity,
+      total_amount: confirmation.total,
+      total_price: confirmation.total,
+      seller_id: user.id,
+      staff_id: user.id,
+      created_by: user.id, 
+      staff_email: user.email,
+      staff_name: activeStaffName.trim(), 
+      payment_status: confirmation.status,
+      customer_name: isTab ? customerName.trim() : (t('cash_customer') || "Cash Customer"), 
+      customer_phone: isTab ? customerPhone.trim() : "N/A",
+      is_verified: false
+    };
+
     try {
-      const activeStaffName = user.user_metadata?.full_name || user.full_name || user.email || 'System Terminal';
+      // Offline fallback check interceptor
+      if (!navigator.onLine) {
+        await saveSaleOffline(salePayload);
+        executeLocalStateDeduction();
+        alert("⚠️ Mode Hors-ligne : Vente enregistrée en local ! Elle se synchronisera dès que le réseau reviendra.");
+        return;
+      }
 
-      const { error: saleError } = await supabase.from('sales').insert([{
-        product_id: confirmation.product_id,
-        quantity: confirmation.quantity,
-        total_amount: confirmation.total,
-        total_price: confirmation.total,
-        seller_id: user.id,
-        staff_id: user.id,
-        created_by: user.id, 
-        staff_email: user.email,
-        staff_name: activeStaffName.trim(), 
-        payment_status: confirmation.status,
-        customer_name: isTab ? customerName.trim() : (t('cash_customer') || "Cash Customer"), 
-        customer_phone: isTab ? customerPhone.trim() : "N/A",
-        is_verified: false
-      }]);
-
+      const { error: saleError } = await supabase.from('sales').insert([salePayload]);
       if (saleError) throw saleError;
 
       const prod = inventory.find(i => i.id === confirmation.product_id);
@@ -119,23 +130,54 @@ export default function Sales({ onBack }) {
         if (stockError) throw stockError;
       }
 
-      setConfirmation(null);
-      setSelectedProduct("");
-      setQuantity(1);
-      setIsTab(false);
-      setCustomerName("");
-      setCustomerPhone("");
-      
+      // Safe live refresh
       await fetchInv();
       await fetchDailySales();
+      clearFormFields();
       alert(t('alert_sale_recorded') || "Sale Recorded Successfully!");
 
     } catch (error) {
-      console.error("Sales Finalization Error:", error);
-      alert((t('submission_error') || "Submission Error: ") + error.message);
+      console.error("Online execution broken, moving to local store fallback storage:", error);
+      try {
+        await saveSaleOffline(salePayload);
+        executeLocalStateDeduction();
+        alert("📡 Réseau instable. Transaction sécurisée localement.");
+      } catch (fallbackErr) {
+        alert("Critical storage error: " + fallbackErr.message);
+      }
     } finally {
       setLoading(false);
     }
+  };
+
+  const executeLocalStateDeduction = () => {
+    // Process client UI inventory adjustments directly in state if server drops mid-shift
+    setInventory(prev => prev.map(item => {
+      if (item.id === confirmation.product_id) {
+        return { ...item, stock_quantity: Math.max(0, item.stock_quantity - confirmation.quantity) };
+      }
+      return item;
+    }).filter(item => item.stock_quantity > 0));
+
+    // Append fake visual log item directly into local viewport history tracker
+    const localVisualLogItem = {
+      id: 'local_temp_' + Date.now(),
+      total_amount: confirmation.total,
+      quantity: confirmation.quantity,
+      created_at: new Date().toISOString(),
+      inventory: { name: confirmation.name + " (En attente de sync ⏳)" }
+    };
+    setDailySales(prev => [localVisualLogItem, ...prev]);
+    clearFormFields();
+  };
+
+  const clearFormFields = () => {
+    setConfirmation(null);
+    setSelectedProduct("");
+    setQuantity(1);
+    setIsTab(false);
+    setCustomerName("");
+    setCustomerPhone("");
   };
 
   const totalDayRevenue = dailySales.reduce((sum, sale) => sum + (sale.total_amount || 0), 0);
