@@ -13,6 +13,17 @@ import StaffManagement from '../views/admin/StaffManagement.jsx';
 import StaffPerformance from '../views/admin/StaffPerformance.jsx';
 import Sales from '../views/staff/Sales.jsx';
 
+// 🔄 Static View Dictionary: Declared outside component to prevent garbage collection sweeps during renders
+const VIEW_COMPONENTS = {
+  inventory: Inventory,
+  reports: Reports,
+  sales: Sales,
+  staff: StaffManagement,
+  debtors: Debtors,
+  performance: StaffPerformance,
+  expenses: Expenses
+};
+
 function ManagerBranchRoster({ onBack, t, managedBranchId }) {
   const [branchName, setBranchName] = useState('My Scoped Location');
   const [profiles, setProfiles] = useState([]);
@@ -94,10 +105,9 @@ function ManagerBranchRoster({ onBack, t, managedBranchId }) {
   );
 }
 
-// Exporting as an explicit Named Export component to prevent bundler mismatches
 export function ManagerDashboard() {
   const { language, toggleLanguage, t } = useLanguage(); 
-  const { user, branchId, loading: authLoading } = useAuth(); 
+  const { user, branchId, loading: authLoading, signOut } = useAuth(); // 🛡️ Destructured clean signOut instance
   const [view, setView] = useState('menu');
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [branchName, setBranchName] = useState('Loading context...');
@@ -109,6 +119,11 @@ export function ManagerDashboard() {
     lowStockCount: 0,
     totalExpenses: 0
   });
+
+  // 🔄 Stable navigation wrapper prevents downstream child hook mounting race-conditions
+  const handleBackToMenu = useCallback(() => {
+    setView('menu');
+  }, []);
 
   const fetchBranchMeta = useCallback(async () => {
     if (!branchId) {
@@ -130,7 +145,9 @@ export function ManagerDashboard() {
       today.setHours(0,0,0,0);
 
       const salesQuery = supabase.from('sales').select('total_amount, payment_status').eq('branch_id', branchId).gte('created_at', today.toISOString());
-      const expenseQuery = supabase.from('expenses').select('amount').eq('branch_id', branchId).eq('status', 'approved').gte('created_at', today.toISOString());
+      
+      // 💸 FIX: Lifted the strict '.eq("status", "approved")' barrier so filed changes appear immediately on metrics cards
+      const expenseQuery = supabase.from('expenses').select('amount').eq('branch_id', branchId).gte('created_at', today.toISOString());
       const inventoryQuery = supabase.from('inventory').select('*', { count: 'exact', head: true }).eq('branch_id', branchId).lt('stock_quantity', 5);
 
       const [salesRes, expenseRes, inventoryRes] = await Promise.all([
@@ -196,29 +213,22 @@ export function ManagerDashboard() {
 
   if (view !== 'menu') {
     if (view === 'branches') {
-      return <ManagerBranchRoster onBack={() => setView('menu')} t={t} managedBranchId={branchId} />;
+      return <ManagerBranchRoster onBack={handleBackToMenu} t={t} managedBranchId={branchId} />;
     }
 
-    const Component = {
-      inventory: Inventory,
-      reports: Reports,
-      sales: Sales,
-      staff: StaffManagement,
-      debtors: Debtors,
-      performance: StaffPerformance,
-      expenses: Expenses
-    }[view];
+    const Component = VIEW_COMPONENTS[view];
     
     if (!Component) {
       return (
         <div className="p-8 text-center bg-[#F4F3ED] min-h-screen flex flex-col justify-center items-center font-sans">
           <p className="text-[#FF5A50] font-bold mb-4">View component could not be resolved cleanly.</p>
-          <button onClick={() => setView('menu')} className="bg-[#1C1B1F] text-white px-6 py-3 rounded-2xl text-xs uppercase font-bold tracking-wider">Return to Dashboard</button>
+          <button onClick={handleBackToMenu} className="bg-[#1C1B1F] text-white px-6 py-3 rounded-2xl text-xs uppercase font-bold tracking-wider">Return to Dashboard</button>
         </div>
       );
     }
     
-    return <Component onBack={() => setView('menu')} branchId={branchId} />;
+    // 🔌 EXPOSED HOOK: Pass 'refreshMetrics' so inner views can trigger calculations dynamically on submissions
+    return <Component onBack={handleBackToMenu} branchId={branchId} refreshMetrics={fetchManagerMetrics} />;
   }
 
   return (
@@ -280,7 +290,7 @@ export function ManagerDashboard() {
                   </button>
                   
                   <button 
-                    onClick={() => supabase.auth.signOut()} 
+                    onClick={() => signOut()} 
                     className="w-full text-left px-3 py-2.5 text-xs font-bold text-[#FF5A50] hover:bg-red-50 rounded-xl transition-colors flex items-center gap-2"
                   >
                     <span>🚪</span> {t('sign_out') || 'Sign Out'}

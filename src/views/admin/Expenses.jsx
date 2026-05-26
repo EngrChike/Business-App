@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useLanguage } from '../../context/LanguageContext.jsx'; // Global translation link
 import { supabase } from '../../api/supabaseClient';
 
@@ -21,7 +21,7 @@ export default function Expenses({ onBack }) {
   });
 
   // Dynamically translated UI categories
-  const categories = [
+  const categories = useMemo(() => [
     { value: 'Transport', label: t('cat_transport') || 'Transport' },
     { value: 'Electricity', label: t('cat_electricity') || 'Electricity' },
     { value: 'Staff Lunch', label: t('cat_staff_lunch') || 'Staff Lunch' },
@@ -29,7 +29,14 @@ export default function Expenses({ onBack }) {
     { value: 'Cleaning', label: t('cat_cleaning') || 'Cleaning' },
     { value: 'Security', label: t('cat_security') || 'Security' },
     { value: 'Other', label: t('cat_other') || 'Other' }
-  ];
+  ], [t]);
+
+  // Derived current branch location name from local cache
+  const currentBranchName = useMemo(() => {
+    if (!userProfile?.branch_id) return 'Local counter';
+    const match = branches.find(b => b.id === userProfile.branch_id);
+    return match ? match.name : 'Local counter';
+  }, [branches, userProfile]);
 
   // Secured isolated database fetching pipeline
   const fetchExpenses = useCallback(async (profile, userIsAdmin) => {
@@ -159,18 +166,21 @@ export default function Expenses({ onBack }) {
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-6 pb-24 font-sans antialiased">
       <div className="max-w-4xl mx-auto">
-        <button onClick={onBack} className="text-blue-600 font-black mb-6 uppercase text-xs tracking-widest block hover:opacity-80 transition-all">
+        <button 
+          onClick={onBack} 
+          className="text-blue-600 font-black mb-6 uppercase text-xs tracking-widest block hover:opacity-80 transition-all"
+        >
           {t('back')}
         </button>
         
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <h1 className="text-2xl font-black uppercase italic tracking-tight text-slate-900">
             {t('business_expenses') || 'Business Expenses'}
           </h1>
           <span className={`text-[10px] font-black border px-3 py-1 rounded-full uppercase tracking-widest shadow-sm ${
             isAdmin ? 'bg-slate-900 text-emerald-400 border-slate-800' : 'bg-white text-slate-700 border-slate-200'
           }`}>
-            {isAdmin ? '👑 Global Ledger View' : `📍 Location Safe Lock: ${userProfile?.branches?.name || 'Local counter'}`}
+            {isAdmin ? '👑 Global Ledger View' : `📍 Location Safe Lock: ${currentBranchName}`}
           </span>
         </div>
 
@@ -218,7 +228,8 @@ export default function Expenses({ onBack }) {
             <div className="flex flex-col gap-1.5">
               <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-1">Expense Type</label>
               <select 
-                className="p-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-sm h-[54px] outline-none focus:bg-slate-100/80 transition-all text-slate-800"
+                disabled={loading}
+                className="p-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-sm h-[54px] outline-none focus:bg-slate-100/80 transition-all text-slate-800 disabled:opacity-60"
                 value={formData.category}
                 onChange={e => setFormData({...formData, category: e.target.value})}
               >
@@ -232,7 +243,7 @@ export default function Expenses({ onBack }) {
               <select
                 className="p-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-sm h-[54px] outline-none text-slate-800 disabled:opacity-60 disabled:bg-slate-100"
                 value={formData.branch_id}
-                disabled={!isAdmin}
+                disabled={!isAdmin || loading}
                 onChange={e => setFormData({...formData, branch_id: e.target.value})}
               >
                 {!isAdmin && userProfile?.branch_id ? (
@@ -255,8 +266,9 @@ export default function Expenses({ onBack }) {
                 type="number" 
                 min="0.01"
                 step="any"
+                disabled={loading}
                 placeholder={`${t('amount_label') || 'Amount'} (FCFA)`} 
-                className="p-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-sm h-[54px] outline-none focus:bg-slate-100/80 transition-all text-slate-800"
+                className="p-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-sm h-[54px] outline-none focus:bg-slate-100/80 transition-all text-slate-800 disabled:opacity-60"
                 value={formData.amount}
                 onChange={e => setFormData({...formData, amount: e.target.value})}
                 required
@@ -268,8 +280,9 @@ export default function Expenses({ onBack }) {
               <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-1">Audit Note</label>
               <input 
                 type="text" 
+                disabled={loading}
                 placeholder={`${t('description_label') || 'Description'} (${t('optional_label') || 'Optional'})`} 
-                className="p-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-sm h-[54px] outline-none focus:bg-slate-100/80 transition-all text-slate-800"
+                className="p-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-sm h-[54px] outline-none focus:bg-slate-100/80 transition-all text-slate-800 disabled:opacity-60"
                 value={formData.description}
                 onChange={e => setFormData({...formData, description: e.target.value})}
               />
@@ -318,7 +331,7 @@ export default function Expenses({ onBack }) {
                       {new Date(exp.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
                     </p>
                   </div>
-                  <p className="text-lg font-black text-slate-900 tracking-tight">
+                  <p className="text-lg font-black text-slate-900 tracking-tight whitespace-nowrap">
                     -{exp.amount?.toLocaleString()} <span className="text-[10px] font-bold text-slate-400">FCFA</span>
                   </p>
                 </div>
