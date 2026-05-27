@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../../context/AuthContext';
-import { useLanguage } from '../../context/LanguageContext.jsx';
-import { supabase } from '../../api/supabaseClient';
+import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext.jsx';
+import { supabase } from '../api/supabaseClient';
 import Sales from './Sales';
 import Inventory from './Inventory';
 import Expenses from './Expenses';
