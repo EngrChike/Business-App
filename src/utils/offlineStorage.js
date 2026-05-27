@@ -1,18 +1,19 @@
 // src/utils/offlineStorage.js
 import { openDB } from 'idb';
-
-// ✅ FIXED PATH FOR PRODUCTION VERCEL DEPLOYMENT
-// Backs out of utils/ into src/, then targets your operational frontend API folder
 import { supabase } from '../api/supabaseClient.js'; 
 
 const DB_NAME = 'monbilan_offline_db';
-const STORE_NAME = 'pending_sales';
+const SALES_STORE = 'pending_sales';
+const EXPENSES_STORE = 'pending_expenses';
 
-// Initialize the IndexedDB Database Instance
-const dbPromise = openDB(DB_NAME, 1, {
-  upgrade(db) {
-    if (!db.objectStoreNames.contains(STORE_NAME)) {
-      db.createObjectStore(STORE_NAME, { keyPath: 'local_id', autoIncrement: true });
+// Initialize the IndexedDB Database Instance with version 2 to handle both stores
+const dbPromise = openDB(DB_NAME, 2, {
+  upgrade(db, oldVersion, newVersion) {
+    if (!db.objectStoreNames.contains(SALES_STORE)) {
+      db.createObjectStore(SALES_STORE, { keyPath: 'local_id', autoIncrement: true });
+    }
+    if (!db.objectStoreNames.contains(EXPENSES_STORE)) {
+      db.createObjectStore(EXPENSES_STORE, { keyPath: 'local_id', autoIncrement: true });
     }
   },
 });
@@ -28,20 +29,20 @@ export async function saveSaleOffline(saleData) {
       created_at: saleData.created_at || new Date().toISOString(),
       is_offline_record: true
     };
-    await db.add(STORE_NAME, record);
+    await db.add(SALES_STORE, record);
     return true;
   } catch (err) {
-    console.error("IndexedDB write failure:", err.message);
+    console.error("IndexedDB sales write failure:", err.message);
     throw err;
   }
 }
 
 /**
- * 2. Fetches all pending transactions stored locally.
+ * 2. Fetches all pending sales stored locally.
  */
 export async function getPendingSales() {
   const db = await dbPromise;
-  return db.getAll(STORE_NAME);
+  return db.getAll(SALES_STORE);
 }
 
 /**
@@ -49,15 +50,48 @@ export async function getPendingSales() {
  */
 export async function clearSyncedSale(localId) {
   const db = await dbPromise;
-  return db.delete(STORE_NAME, localId);
+  return db.delete(SALES_STORE, localId);
 }
 
 /**
- * 4. Master Background Reconciliation Engine.
- * Iterates through local items, strips UI layout objects, and uploads directly to Supabase.
+ * 4. Safely queues an offline expense payload into the browser's IndexedDB storage.
+ */
+export async function saveExpenseOffline(expenseData) {
+  try {
+    const db = await dbPromise;
+    const record = {
+      ...expenseData,
+      created_at: expenseData.created_at || new Date().toISOString(),
+      is_offline_record: true
+    };
+    await db.add(EXPENSES_STORE, record);
+    return true;
+  } catch (err) {
+    console.error("IndexedDB expenses write failure:", err.message);
+    throw err;
+  }
+}
+
+/**
+ * 5. Fetches all pending expenses stored locally.
+ */
+export async function getPendingExpenses() {
+  const db = await dbPromise;
+  return db.getAll(EXPENSES_STORE);
+}
+
+/**
+ * 6. Deletes a specific expense from the local queue after a successful database sync.
+ */
+export async function clearSyncedExpense(localId) {
+  const db = await dbPromise;
+  return db.delete(EXPENSES_STORE, localId);
+}
+
+/**
+ * 7. Master Background Reconciliation Engine for Sales.
  */
 export async function syncOfflineSalesWithSupabase() {
-  // Gracefully stop if the hardware client doesn't detect network connectivity
   if (!navigator.onLine) return { success: false, reason: "Hardware network status is offline" };
 
   const pendingSales = await getPendingSales();
@@ -67,30 +101,62 @@ export async function syncOfflineSalesWithSupabase() {
 
   for (const sale of pendingSales) {
     try {
-      // SANITIZATION: Strip local Primary Keys and layout variables out before server insertion
       const { local_id, is_offline_record, inventory, ...cleanSupabasePayload } = sale;
 
-      // Validate data integrity: protect against missing branch identities
       if (!cleanSupabasePayload.branch_id) {
-        console.warn(`[SYNC] Local item ${local_id} missing operational branch tracking ID. Skipping.`);
+        console.warn(`[SYNC] Local sale item ${local_id} missing operational branch tracking ID. Skipping.`);
         continue;
       }
 
-      // Execute row insertion into your Supabase production table
       const { error } = await supabase.from('sales').insert([cleanSupabasePayload]);
       if (error) throw error;
 
-      // Clear from browser storage immediately upon successful server response
       await clearSyncedSale(local_id);
       successfullySyncedCount++;
     } catch (err) {
-      console.error(`[SYNC] Server engine rejected local record ID ${sale.local_id}:`, err.message);
+      console.error(`[SYNC] Server engine rejected local sale record ID ${sale.local_id}:`, err.message);
     }
   }
 
-  // Broadcast a global runtime window event to trigger an instant UI layout refresh
   if (successfullySyncedCount > 0) {
     window.dispatchEvent(new Event('sales-synced'));
+  }
+
+  return { success: true, processed: successfullySyncedCount };
+}
+
+/**
+ * 8. Master Background Reconciliation Engine for Expenses.
+ */
+export async function syncOfflineExpensesWithSupabase() {
+  if (!navigator.onLine) return { success: false, reason: "Hardware network status is offline" };
+
+  const pendingExpenses = await getPendingExpenses();
+  if (pendingExpenses.length === 0) return { success: true, processed: 0 };
+
+  let successfullySyncedCount = 0;
+
+  for (const expense of pendingExpenses) {
+    try {
+      const { local_id, is_offline_record, ...cleanSupabasePayload } = expense;
+
+      if (!cleanSupabasePayload.branch_id) {
+        console.warn(`[SYNC] Local expense item ${local_id} missing operational branch tracking ID. Skipping.`);
+        continue;
+      }
+
+      const { error } = await supabase.from('expenses').insert([cleanSupabasePayload]);
+      if (error) throw error;
+
+      await clearSyncedExpense(local_id);
+      successfullySyncedCount++;
+    } catch (err) {
+      console.error(`[SYNC] Server engine rejected local expense record ID ${expense.local_id}:`, err.message);
+    }
+  }
+
+  if (successfullySyncedCount > 0) {
+    window.dispatchEvent(new Event('expenses-synced'));
   }
 
   return { success: true, processed: successfullySyncedCount };

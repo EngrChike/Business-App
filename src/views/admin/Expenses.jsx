@@ -126,7 +126,6 @@ export default function Expenses({ onBack, branchId: dashboardBranchId, userRole
       setFormData({ description: '', amount: '', category: 'Logistics' });
       await fetchExpenses();
       
-      // ⚡️ Upstream master context layout trigger sync execution
       if (typeof refreshMetrics === 'function') {
         await refreshMetrics();
       }
@@ -235,9 +234,9 @@ export default function Expenses({ onBack, branchId: dashboardBranchId, userRole
           <button 
             type="submit" 
             disabled={loading}
-            className="bg-slate-900 text-white px-8 rounded-2xl font-black uppercase text-xs hover:bg-black transition-all active:scale-95"
+            className="bg-slate-900 text-white px-8 rounded-2xl font-black uppercase text-xs hover:bg-black transition-all active:scale-95 disabled:opacity-50"
           >
-            {loading ? "..." : "Log Cost Payout"}
+            {loading ? "Processing..." : "Log Cost Payout"}
           </button>
         </div>
       </form>
