@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext.jsx'; 
 import Login from './views/shared/Login.jsx'; 
 import AdminDashboard from './pages/AdminDashboard.jsx'; 
-import { ManagerDashboard } from './pages/ManagerDashboard.jsx'; // ✅ Just one clean, named import
+import ManagerDashboard from './pages/ManagerDashboard.jsx'; // ✅ FIXED: Removed curly braces to match default export style
 import StaffDashboard from './pages/StaffDashboard.jsx'; 
 import OfflineSyncManager from './components/OfflineSyncManager.jsx';
 import { supabase } from './api/supabaseClient.js'; 
