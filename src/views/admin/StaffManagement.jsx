@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { useLanguage } from '../../context/LanguageContext.jsx'; // Centralized translation wrapper hook
+// src/views/admin/StaffManagement.jsx
+import React, { useState, useEffect, useCallback } from 'react';
+import { useLanguage } from '../../context/LanguageContext.jsx'; 
 import { supabase } from '../../api/supabaseClient';
-// 1. Import the original client initializer to create an isolated admin provisioning tunnel
 import { createClient } from '@supabase/supabase-js';
 
-// 2. Instantiate an independent authentication engine with storage token mapping completely DISABLED.
+// Instantiate an independent authentication engine with storage token mapping disabled.
 const provisioningClient = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY,
@@ -23,8 +23,8 @@ const provisioningClient = createClient(
   }
 );
 
-export default function StaffManagement({ onBack }) {
-  const { t } = useLanguage(); // Centralized localized string dictionary reference
+export default function StaffManagement({ onBack, refreshMetrics }) {
+  const { t } = useLanguage();
 
   // --- CORE UI LAYOUT STATES ---
   const [branches, setBranches] = useState([]);
@@ -43,56 +43,58 @@ export default function StaffManagement({ onBack }) {
   const [newBranchName, setNewBranchName] = useState('');
   const [newBranchLocation, setNewBranchLocation] = useState('');
 
+  // Centralized background infrastructure synchronizer
+  const fetchManagementInfrastructure = useCallback(async () => {
+    try {
+      const { data: branchData } = await supabase.from('branches').select('id, name, location').order('name', { ascending: true });
+      setBranches(branchData || []);
+
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('id, full_name, name, email, role, branch_id, is_active')
+        .neq('role', 'admin')
+        .order('name', { ascending: true });
+      setStaffList(profilesData || []);
+    } catch (err) {
+      console.error("Management infrastructure background sync failed:", err);
+    }
+  }, []);
+
   // Safe Lifecycle Hook to prevent static loading screen hangs
   useEffect(() => {
     let isMounted = true;
 
-    const loadData = async () => {
-      if (!isMounted) return;
+    const loadInitialData = async () => {
       setLoadingLayout(true);
       try {
         const { data: branchData, error: bError } = await supabase
           .from('branches')
-          .select('id, name, location');
+          .select('id, name, location')
+          .order('name', { ascending: true });
         if (bError) throw bError;
         if (isMounted) setBranches(branchData || []);
 
         const { data: profilesData, error: pError } = await supabase
           .from('profiles')
           .select('id, full_name, name, email, role, branch_id, is_active')
-          .neq('role', 'admin');
+          .neq('role', 'admin')
+          .order('name', { ascending: true });
         if (pError) throw pError;
         if (isMounted) setStaffList(profilesData || []);
 
       } catch (err) {
-        if (isMounted) setMessage("❌ System Init Error: " + err.message);
+        if (isMounted) setMessage("❌ System Registry Init Error: " + err.message);
       } finally {
         if (isMounted) setLoadingLayout(false);
       }
     };
 
-    loadData();
+    loadInitialData();
 
     return () => {
       isMounted = false; 
     };
   }, []);
-
-  // Manual explicit refresh action engine
-  const fetchManagementInfrastructure = async () => {
-    try {
-      const { data: branchData } = await supabase.from('branches').select('id, name, location');
-      setBranches(branchData || []);
-
-      const { data: profilesData } = await supabase
-        .from('profiles')
-        .select('id, full_name, name, email, role, branch_id, is_active')
-        .neq('role', 'admin');
-      setStaffList(profilesData || []);
-    } catch (err) {
-      console.error("Background sync failed", err);
-    }
-  };
 
   // --- ACTION 1: AUTHORIZE / CREATE NEW AUTH ACCOUNT ---
   const handleCreateStaff = async (e) => {
@@ -113,8 +115,6 @@ export default function StaffManagement({ onBack }) {
     }
 
     try {
-      // ⚡ METADATA ROUTING: We pass the data parameters here so your backend custom trigger
-      // handles writing rows into public.profiles with superuser privileges loop-free.
       const { data, error } = await provisioningClient.auth.signUp({
         email: verifiedEmailString,
         password: password,
@@ -136,9 +136,9 @@ export default function StaffManagement({ onBack }) {
         setPassword('');
         setSelectedRole('staff');
         
-        // Pause briefly to give the background async trigger a millisecond to complete its transaction entry
         setTimeout(async () => {
           await fetchManagementInfrastructure(); 
+          if (typeof refreshMetrics === 'function') refreshMetrics();
         }, 600);
       }
     } catch (err) {
@@ -153,6 +153,7 @@ export default function StaffManagement({ onBack }) {
     e.preventDefault();
     if (!newBranchName.trim()) return;
     setActionLoading(true);
+    setMessage('');
 
     try {
       const { data, error } = await supabase
@@ -162,10 +163,13 @@ export default function StaffManagement({ onBack }) {
 
       if (error) throw error;
       
-      setBranches(prev => [...prev, data[0]]);
+      if (data && data.length > 0) {
+        setBranches(prev => [...prev, data[0]]);
+      }
       setNewBranchName('');
       setNewBranchLocation('');
       setMessage("✅ New branch location deployed successfully!");
+      if (typeof refreshMetrics === 'function') refreshMetrics();
     } catch (err) {
       setMessage("❌ Branch Save Error: " + err.message);
     } finally {
@@ -175,6 +179,7 @@ export default function StaffManagement({ onBack }) {
 
   // --- ACTION 3: REASSIGN EXCLUSIVE BRANCH ALLOCATION ---
   const handleAllocateStaff = async (profileId, targetBranchId) => {
+    setMessage('');
     try {
       const updatedBranchValue = targetBranchId === "" ? null : targetBranchId;
 
@@ -191,12 +196,13 @@ export default function StaffManagement({ onBack }) {
       
       setMessage("✅ Station allocation updated successfully in ledger database.");
     } catch (err) {
-      alert("⚠️ Allocation System Error: " + err.message);
+      setMessage("⚠️ Allocation System Error: " + err.message);
     }
   };
 
   // --- ACTION 4: ASSIGN OR ALTER USER ACCOUNT ROLE MANUALLY ---
   const handleRoleChange = async (profileId, targetRole) => {
+    setMessage('');
     try {
       const { error } = await supabase
         .from('profiles')
@@ -211,12 +217,13 @@ export default function StaffManagement({ onBack }) {
       
       setMessage("✅ User security rank altered successfully.");
     } catch (err) {
-      alert("⚠️ Security Modification Rejected: " + err.message);
+      setMessage("⚠️ Security Modification Rejected: " + err.message);
     }
   };
 
   // --- ACTION 5: ADMINISTRATIVE DEACTIVATION TOGGLE ---
   const handleToggleStaffAccess = async (profileId, currentStatus) => {
+    setMessage('');
     const promptMessage = currentStatus 
       ? "Are you sure you want to SUSPEND this user?"
       : "Restore active app status permissions for this profile?";
@@ -237,12 +244,13 @@ export default function StaffManagement({ onBack }) {
       
       setMessage(`✅ Staff status changed to ${!currentStatus ? 'ACTIVE' : 'SUSPENDED'}`);
     } catch (err) {
-      alert("Status alteration rejected: " + err.message);
+      setMessage("❌ Status alteration rejected: " + err.message);
     }
   };
 
   // --- ACTION 6: DECOMMISSION / REMOVE A BRANCH ---
   const handleDeleteBranch = async (branchId) => {
+    setMessage('');
     if (!window.confirm("Are you sure you want to completely remove this operational station counter?")) return;
     
     try {
@@ -255,48 +263,57 @@ export default function StaffManagement({ onBack }) {
 
       setMessage("✅ Branch station successfully decommissioned.");
       await fetchManagementInfrastructure();
+      if (typeof refreshMetrics === 'function') refreshMetrics();
     } catch (err) {
-      alert("Failed to remove branch station: " + err.message);
+      setMessage("❌ Failed to remove branch station: " + err.message);
     }
   };
 
   if (loadingLayout) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-xs font-black uppercase text-slate-500 tracking-widest">
-        Loading Access Framework...
+      <div className="min-h-screen bg-[#F4F3ED] flex items-center justify-center font-sans">
+        <div className="text-xs font-bold text-slate-500 animate-pulse tracking-widest uppercase">
+          Loading HQ Access Framework Controls...
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 p-4 md:p-8 font-sans text-white space-y-10 max-w-6xl mx-auto relative">
-      <button onClick={onBack} className="text-blue-500 font-black text-xs uppercase tracking-widest hover:text-blue-400 transition-all block mb-4">
-        {t('back') || '⬅️ Back'}
-      </button>
-
-      <div className="border-b border-white/5 pb-6">
-        <h1 className="font-black text-2xl uppercase tracking-tight italic text-white">
-          {t('access_control') || 'Access Control Center'}
-        </h1>
-        <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mt-1">
-          {t('staff_provisioning') || 'Enterprise Staff Provisioning & Stations Management'}
-        </p>
+    <div className="min-h-screen bg-[#F4F3ED] text-[#111111] p-4 md:p-8 font-sans antialiased space-y-8 max-w-5xl mx-auto">
+      
+      {/* HEADER SECTION WITH IVORY WRAPPERS */}
+      <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-slate-200 pb-6 gap-4">
+        <div>
+          <button onClick={onBack} className="text-[#3F51B5] font-bold text-xs uppercase tracking-widest flex items-center gap-2 mb-2 hover:opacity-80 transition-all">
+            ← {t('back') || 'Back to Station Panel'}
+          </button>
+          <h1 className="text-2xl md:text-3xl font-black tracking-tight text-slate-900">
+            {t('access_control') || 'Access Control Center'}
+          </h1>
+          <p className="text-xs text-slate-400 font-medium mt-0.5">
+            {t('staff_provisioning') || 'Enterprise Staff Provisioning & Terminal Station Vectors'}
+          </p>
+        </div>
       </div>
 
+      {/* RE-ANIMATED NOTIFICATION GRID */}
       {message && (
-        <div className={`p-4 rounded-2xl text-xs font-black uppercase text-center tracking-wider border transition-all max-w-md mx-auto ${
+        <div className={`p-4 rounded-2xl text-xs font-black uppercase text-center tracking-wider border transition-all max-w-xl mx-auto shadow-sm ${
           message.includes('❌') || message.includes('⚠️') 
-            ? 'bg-red-500/10 text-red-400 border-red-500/20' 
-            : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+            ? 'bg-red-50 text-red-700 border-red-200' 
+            : 'bg-emerald-50 text-emerald-700 border-emerald-200'
         }`}>
           {message}
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+      {/* CORE CONTROL INPUT BOARDS */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        
         {/* PANEL A: ACCOUNT REGISTRATION FORM */}
-        <div className="bg-[#0f172a] p-6 md:p-8 rounded-[40px] border border-white/5 shadow-xl space-y-4">
-          <h3 className="font-black text-sm uppercase text-slate-400 tracking-wider">🔑 Account Provisioning Registry</h3>
+        <div className="bg-white p-6 md:p-8 rounded-[28px] border border-slate-100 shadow-sm space-y-4">
+          <h3 className="font-black text-xs uppercase text-[#3F51B5] tracking-widest">🔑 Account Provisioning Registry</h3>
           <form onSubmit={handleCreateStaff} className="space-y-4">
             <div>
               <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2 px-1">
@@ -306,37 +323,40 @@ export default function StaffManagement({ onBack }) {
                 type="text" 
                 value={fullName} 
                 onChange={(e) => setFullName(e.target.value)}
-                className="w-full p-4 bg-white/5 border border-white/10 rounded-2xl outline-none focus:border-blue-500 text-white font-bold text-sm transition-all"
-                placeholder="e.g., John Doe"
+                className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-[#3F51B5] focus:bg-white text-slate-900 font-bold text-xs transition-all"
+                placeholder="e.g., Arnold Chike"
                 required
               />
             </div>
+            
             <div>
               <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2 px-1">
-                {t('staff_email_label') || 'Staff Email Address'}
+                {t('staff_email_label') || 'Staff Username / Email'}
               </label>
               <input 
                 type="text" 
                 value={email} 
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full p-4 bg-white/5 border border-white/10 rounded-2xl outline-none focus:border-blue-500 text-white font-bold text-sm transition-all"
-                placeholder="staff@business.com or Name"
+                className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-[#3F51B5] focus:bg-white text-slate-900 font-bold text-xs transition-all"
+                placeholder="staffname or email@business.com"
                 required
               />
             </div>
+
             <div>
               <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2 px-1">
-                Account Clearance Hierarchy Rank
+                Account Clearance Rank
               </label>
               <select
                 value={selectedRole}
                 onChange={(e) => setSelectedRole(e.target.value)}
-                className="w-full p-4 bg-white/5 border border-white/10 rounded-2xl outline-none focus:border-blue-500 text-white font-bold text-sm transition-all"
+                className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-[#3F51B5] focus:bg-white text-slate-900 font-bold text-xs transition-all cursor-pointer"
               >
-                <option value="staff" className="bg-slate-900 text-white">Standard Staff Member (Sales Registry Only)</option>
-                <option value="manager" className="bg-slate-900 text-blue-400 font-extrabold">Branch Manager (Operational Controls)</option>
+                <option value="staff">Standard Staff Member (Sales Register)</option>
+                <option value="manager">Branch Manager (Operational Controls)</option>
               </select>
             </div>
+
             <div>
               <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2 px-1">
                 {t('secure_password_label') || 'Secure Password'}
@@ -345,117 +365,124 @@ export default function StaffManagement({ onBack }) {
                 type="password" 
                 value={password} 
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full p-4 bg-white/5 border border-white/10 rounded-2xl outline-none focus:border-blue-500 text-white font-bold text-sm tracking-wide transition-all"
+                className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-[#3F51B5] focus:bg-white text-slate-900 font-bold text-xs tracking-widest transition-all"
                 placeholder="••••••••••••"
                 minLength={6}
                 required
               />
             </div>
+
             <button 
               type="submit"
               disabled={actionLoading} 
-              className="w-full p-5 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl transition-all active:scale-95 border-b-4 border-blue-800 disabled:opacity-50 mt-4"
+              className="w-full p-4 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-black uppercase text-xs tracking-widest shadow-sm transition-all active:scale-[0.99] disabled:opacity-50 mt-2"
             >
-              {actionLoading ? "Provisioning..." : (t('authorize_staff_btn') || "Authorize New Account 🔑")}
+              {actionLoading ? "Provisioning..." : (t('authorize_staff_btn') || "Authorize Account 🔑")}
             </button>
           </form>
         </div>
 
         {/* PANEL B: PHYSICAL STATION COUNTER CREATION */}
-        <div className="bg-[#0f172a] p-6 md:p-8 rounded-[40px] border border-white/5 shadow-xl space-y-4">
-          <h3 className="font-black text-sm uppercase text-slate-400 tracking-wider">🏢 Deployed Stations Counter</h3>
+        <div className="bg-white p-6 md:p-8 rounded-[28px] border border-slate-100 shadow-sm space-y-4">
+          <h3 className="font-black text-xs uppercase text-[#3F51B5] tracking-widest">🏢 Deployed Stations Counter</h3>
           <form onSubmit={handleCreateBranch} className="space-y-4">
             <div>
               <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2 px-1">Branch Name</label>
               <input 
                 type="text" 
-                placeholder="e.g., Main Retail Counter" 
-                className="w-full p-4 bg-white/5 border border-white/10 rounded-2xl outline-none focus:border-blue-500 text-white font-bold text-sm transition-all"
+                placeholder="e.g., Owerri Showroom" 
+                className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-[#3F51B5] focus:bg-white text-slate-900 font-bold text-xs transition-all"
                 value={newBranchName}
                 onChange={(e) => setNewBranchName(e.target.value)}
                 required
               />
             </div>
+            
             <div>
-              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2 px-1">Location/Address Details</label>
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2 px-1">Location Details</label>
               <input 
                 type="text" 
-                placeholder="e.g., Floor 1 Suite C" 
-                className="w-full p-4 bg-white/5 border border-white/10 rounded-2xl outline-none focus:border-blue-500 text-white font-bold text-sm transition-all"
+                placeholder="e.g., Suite 4 Umuikea Umuoma" 
+                className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-[#3F51B5] focus:bg-white text-slate-900 font-bold text-xs transition-all"
                 value={newBranchLocation}
                 onChange={(e) => setNewBranchLocation(e.target.value)}
               />
             </div>
+
             <button 
               type="submit"
               disabled={actionLoading}
-              className="w-full p-5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl transition-all active:scale-95 border-b-4 border-indigo-800 disabled:opacity-50 mt-4"
+              className="w-full p-4 bg-[#3F51B5] hover:bg-indigo-700 text-white rounded-xl font-black uppercase text-xs tracking-widest shadow-sm transition-all active:scale-[0.99] disabled:opacity-50 mt-2"
             >
-              Deploy New Station Point
+              Deploy Operational Station Point
             </button>
           </form>
         </div>
       </div>
 
-      {/* LOWER STACKED DATA PANELS SECTION */}
-      <div className="space-y-8">
-        {/* TABLE 1: STAFF MANAGEMENT LEDGER */}
-        <div className="bg-[#0f172a] p-6 md:p-8 rounded-[40px] border border-white/5 shadow-xl">
-          <h3 className="font-black text-sm uppercase text-slate-400 tracking-wider mb-6">📋 Staff Allocation Ledger & Security Toggles</h3>
+      {/* LOWER STACKED DATA TABLES */}
+      <div className="space-y-6">
+        
+        {/* TABLE 1: STAFF DATA ENGINE */}
+        <div className="bg-white p-6 rounded-[28px] border border-slate-100 shadow-sm">
+          <h3 className="font-black text-xs uppercase text-slate-800 tracking-wider mb-4">📋 Staff Allocation Ledger & Security Toggles</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-white/5 text-[9px] font-black uppercase text-slate-400 tracking-widest">
-                  <th className="pb-4">Employee Information</th>
-                  <th className="pb-4">Security Rank Role</th>
-                  <th className="pb-4">Allocated Station Base</th>
-                  <th className="pb-4 text-center">System Logins Security</th>
+                <tr className="border-b border-slate-100 text-[9px] font-black uppercase text-slate-400 tracking-widest">
+                  <th className="pb-3">Employee Information</th>
+                  <th className="pb-3">Security Rank</th>
+                  <th className="pb-3">Allocated Station Base</th>
+                  <th className="pb-3 text-center">Security Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5 text-xs font-bold text-slate-300">
+              <tbody className="divide-y divide-slate-100 text-xs font-bold text-slate-700">
                 {staffList.map((staff) => {
-                  const fallbackName = staff.email ? staff.email.split('@')[0].toUpperCase() : 'New Staff Entry';
+                  const fallbackName = staff.email ? staff.email.split('@')[0].toUpperCase() : 'New Staff';
                   const staffDisplayName = staff.full_name || staff.name || fallbackName;
-                  const staffDisplayEmail = staff.email || 'No email configured';
+                  const staffDisplayEmail = staff.email || 'No email attached';
 
                   return (
-                    <tr key={staff.id} className={`hover:bg-white/5 transition-colors ${!staff.is_active ? 'bg-red-500/5 opacity-40' : ''}`}>
-                      <td className="py-4">
-                        <p className="font-extrabold text-white">{staffDisplayName}</p>
-                        <p className="text-[10px] font-medium text-slate-500 mt-0.5">{staffDisplayEmail}</p>
+                    <tr key={staff.id} className={`hover:bg-slate-50/80 transition-colors ${!staff.is_active ? 'bg-red-50/50 opacity-60' : ''}`}>
+                      <td className="py-3.5">
+                        <p className="font-extrabold text-slate-900 uppercase tracking-tight">{staffDisplayName}</p>
+                        <p className="text-[10px] font-medium text-slate-400 lowercase mt-0.5">{staffDisplayEmail}</p>
                       </td>
-                      <td className="py-4">
+                      
+                      <td className="py-3.5">
                         <select
                           value={staff.role || "staff"}
                           onChange={(e) => handleRoleChange(staff.id, e.target.value)}
-                          className="p-2 bg-white/5 border border-white/10 rounded-xl text-xs font-black text-slate-300 outline-none focus:border-blue-500 transition-all"
+                          className="p-2 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-black text-slate-700 outline-none focus:border-[#3F51B5] cursor-pointer"
                         >
-                          <option value="staff" className="bg-slate-900 text-white">STAFF</option>
-                          <option value="manager" className="bg-slate-900 text-blue-400">MANAGER</option>
+                          <option value="staff">STAFF</option>
+                          <option value="manager">MANAGER</option>
                         </select>
                       </td>
-                      <td className="py-4">
+                      
+                      <td className="py-3.5">
                         <select
                           value={staff.branch_id || ""}
                           onChange={(e) => handleAllocateStaff(staff.id, e.target.value)}
-                          className="p-3 bg-white/5 border border-white/10 rounded-xl text-xs font-black text-slate-300 outline-none focus:border-blue-500 transition-all"
+                          className="p-2 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-black text-slate-700 outline-none focus:border-[#3F51B5] cursor-pointer max-w-[200px]"
                         >
-                          <option value="" className="bg-slate-900 text-amber-500">⚠️ Unassigned (Locked Out)</option>
+                          <option value="" className="text-amber-600 font-bold">⚠️ Unassigned (Locked Out)</option>
                           {branches.map(b => (
-                            <option key={b.id} value={b.id} className="bg-slate-900 text-white">
-                              🏢 {b.name} ({b.location || 'No Location'})
+                            <option key={b.id} value={b.id}>
+                              🏢 {b.name}
                             </option>
                           ))}
                         </select>
                       </td>
-                      <td className="py-4 text-center">
+                      
+                      <td className="py-3.5 text-center">
                         <button
                           type="button"
                           onClick={() => handleToggleStaffAccess(staff.id, staff.is_active)}
-                          className={`px-4 py-2 rounded-xl font-black text-[9px] uppercase tracking-wider transition-all active:scale-95 shadow-md ${
+                          className={`px-3 py-1.5 rounded-xl font-black text-[9px] uppercase tracking-wider transition-all shadow-sm ${
                             staff.is_active 
-                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-red-500/20 hover:text-red-400' 
-                              : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-red-50 hover:text-red-600 hover:border-red-100' 
+                              : 'bg-red-50 text-red-600 border border-red-100'
                           }`}
                         >
                           {staff.is_active ? '✅ Active' : '🚫 Suspended'}
@@ -466,8 +493,8 @@ export default function StaffManagement({ onBack }) {
                 })}
                 {staffList.length === 0 && (
                   <tr>
-                    <td colSpan="4" className="text-center py-6 text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                      No registry rows returned from profiles database grid.
+                    <td colSpan="4" className="text-center py-6 text-[10px] font-bold text-slate-400 italic">
+                      No matching records found in public enterprise registry profiles.
                     </td>
                   </tr>
                 )}
@@ -476,42 +503,42 @@ export default function StaffManagement({ onBack }) {
           </div>
         </div>
 
-        {/* TABLE 2: CONSOLIDATED ACTIVE STATIONS LIST */}
-        <div className="bg-[#0f172a] p-6 md:p-8 rounded-[40px] border border-white/5 shadow-xl">
-          <h3 className="font-black text-sm uppercase text-slate-400 tracking-wider mb-6">🏢 Deployed Station Counters Registry</h3>
+        {/* TABLE 2: STATIONS CONTROLLER ENGINE */}
+        <div className="bg-white p-6 rounded-[28px] border border-slate-100 shadow-sm">
+          <h3 className="font-black text-xs uppercase text-slate-800 tracking-wider mb-4">🏢 Active Deployed Station Indices</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-white/5 text-[9px] font-black uppercase text-slate-400 tracking-widest">
-                  <th className="pb-4">Station Name</th>
-                  <th className="pb-4">Location Meta</th>
-                  <th className="pb-4 text-center">Actions</th>
+                <tr className="border-b border-slate-100 text-[9px] font-black uppercase text-slate-400 tracking-widest">
+                  <th className="pb-3">Station Name</th>
+                  <th className="pb-3">Location Anchor</th>
+                  <th className="pb-3 text-center">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5 text-xs font-bold text-slate-300">
+              <tbody className="divide-y divide-slate-100 text-xs font-bold text-slate-700">
                 {branches.map((branch) => (
-                  <tr key={branch.id} className="hover:bg-white/5 transition-colors">
-                    <td className="py-4 font-extrabold text-white">
+                  <tr key={branch.id} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="py-3.5 font-extrabold text-slate-900">
                       🏢 {branch.name}
                     </td>
-                    <td className="py-4 font-medium text-slate-400">
-                      {branch.location || 'No address specified'}
+                    <td className="py-3.5 font-medium text-slate-400">
+                      {branch.location || 'No metadata description specified'}
                     </td>
-                    <td className="py-4 text-center">
+                    <td className="py-3.5 text-center">
                       <button
                         type="button"
                         onClick={() => handleDeleteBranch(branch.id)}
-                        className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-xl font-black text-[9px] uppercase tracking-wider transition-all"
+                        className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 rounded-xl font-black text-[9px] uppercase tracking-wider transition-all"
                       >
-                        Remove Station
+                        Decommission
                       </button>
                     </td>
                   </tr>
                 ))}
                 {branches.length === 0 && (
                   <tr>
-                    <td colSpan="3" className="text-center py-6 text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                      No physical station records discovered in database context.
+                    <td colSpan="3" className="text-center py-6 text-[10px] font-bold text-slate-400 italic">
+                      No active operational branch records registered in the system.
                     </td>
                   </tr>
                 )}
@@ -519,7 +546,9 @@ export default function StaffManagement({ onBack }) {
             </table>
           </div>
         </div>
+
       </div>
+      <div className="h-8"></div>
     </div>
   );
 }

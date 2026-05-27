@@ -24,84 +24,6 @@ const VIEW_COMPONENTS = {
   expenses: Expenses
 };
 
-function AdminBranchRoster({ onBack, t }) {
-  const [branches, setBranches] = useState([]);
-  const [profiles, setProfiles] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [actionMessage, setActionMessage] = useState({ text: '', isError: false });
-
-  const loadAdminRoster = useCallback(async () => {
-    try {
-      setLoading(true);
-      
-      const { data: bData } = await supabase.from('branches').select('*').order('name', { ascending: true });
-      if (bData) setBranches(bData);
-
-      const { data: profileData, error: pError } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('name', { ascending: true });
-      if (pError) throw pError;
-
-      setProfiles(profileData || []);
-    } catch (err) {
-      setActionMessage({ text: `Global roster sync fault: ${err.message}`, isError: true });
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadAdminRoster();
-  }, [loadAdminRoster]);
-
-  return (
-    <div className="min-h-screen bg-[#F4F3ED] text-[#111111] p-4 md:p-8 font-sans antialiased">
-      <div className="max-w-4xl mx-auto">
-        <div className="flex justify-between items-center mb-8 mt-4">
-          <div>
-            <button onClick={onBack} className="text-[#3F51B5] font-bold text-xs uppercase tracking-widest flex items-center gap-2 mb-1 hover:opacity-80">
-              ← {t('back') || 'Back to Menu'}
-            </button>
-            <h1 className="text-2xl font-black tracking-tight">Global HQ Staff Roster</h1>
-            <p className="text-xs text-slate-400 font-medium">All active cross-branch terminal profiles</p>
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-[28px] border border-slate-100 shadow-sm">
-          <div className="p-4 bg-emerald-50 text-emerald-700 rounded-xl mb-6 border border-emerald-100 text-[11px] font-bold uppercase tracking-wide">
-            👑 Corporate Headquarters Master View — Global operational paths unlocked.
-          </div>
-
-          <div className="space-y-2 overflow-y-auto max-h-[400px] pr-1">
-            {profiles.length === 0 ? (
-              <p className="text-xs text-slate-400 italic font-medium p-4 text-center">No staff members found across any terminals.</p>
-            ) : (
-              profiles.map((staff) => {
-                const bName = branches.find(b => b.id === staff.branch_id)?.name || 'HQ Terminal / Unassigned';
-                return (
-                  <div key={staff.id} className="p-4 bg-slate-50 border border-slate-100 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div>
-                      <h4 className="text-xs font-black text-slate-800 uppercase tracking-tight">{staff.name || 'Anonymous Staff'}</h4>
-                      <p className="text-[10px] font-medium text-slate-400 lowercase mt-0.5">{staff.email || 'No email attached'}</p>
-                      <span className="text-[9px] font-black text-[#3F51B5] uppercase bg-indigo-50 px-1.5 py-0.5 rounded-md mt-1 inline-block">Role: {staff.role || 'staff'}</span>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-[10px] font-bold text-slate-500 bg-white border border-slate-200 px-3 py-1.5 rounded-xl shadow-sm">
-                        📍 {bName}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function AdminDashboard() {
   const { language, toggleLanguage, t } = useLanguage(); 
   const { user, branchId, loading: authLoading, signOut } = useAuth(); // 🛡️ Destructured context signOut
@@ -188,10 +110,6 @@ export default function AdminDashboard() {
   }
 
   if (view !== 'menu') {
-    if (view === 'branches') {
-      return <AdminBranchRoster onBack={handleBackToMenu} t={t} />;
-    }
-
     const Component = VIEW_COMPONENTS[view];
     
     if (!Component) {
@@ -372,8 +290,9 @@ export default function AdminDashboard() {
             </div>
           </button>
 
+          {/* ⚡ FIX: Correctly wired up view redirection point to point to 'staff' component layout */}
           <button 
-            onClick={() => setView('branches')} 
+            onClick={() => setView('staff')} 
             className="bg-white border border-slate-100 p-6 md:p-8 rounded-[28px] transition-all hover:scale-[1.01] active:scale-98 text-left group shadow-sm"
           >
             <div className="flex flex-col h-full justify-between">
