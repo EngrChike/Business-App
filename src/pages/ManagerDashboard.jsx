@@ -2,9 +2,11 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext.jsx';
 import { supabase } from '../api/supabaseClient';
-import Sales from './Sales';
-import Inventory from './Inventory';
-import Expenses from './Expenses';
+
+// PERFECTLY MAPPED PATHS BASED ON YOUR DIRECTORY TREE
+import Sales from '../views/staff/Sales';
+import Inventory from '../views/admin/Inventory';
+import Expenses from '../views/admin/Expenses';
 
 export default function ManagerDashboard() {
   const { user } = useAuth();
