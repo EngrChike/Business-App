@@ -4,7 +4,7 @@ import { supabase } from '../../api/supabaseClient';
 import { useAuth } from "../../context/AuthContext"; 
 import { saveSaleOffline } from '../../utils/offlineStorage.js';
 
-export default function Sales({ onBack }) {
+export default function Sales({ onBack, branchId: dashboardBranchId, refreshMetrics }) {
   const { user } = useAuth();
   const { t } = useLanguage(); 
   
@@ -77,7 +77,6 @@ export default function Sales({ onBack }) {
         .gte('created_at', targetShiftBoundary.toISOString())
         .order('created_at', { ascending: false });
 
-      // Condition: Managers/Admins scan branch wide; staff filter uniquely to their own profile ID
       if (activeRole !== 'manager' && activeRole !== 'admin') {
         query = query.eq('seller_id', user.id);
       }
@@ -97,6 +96,31 @@ export default function Sales({ onBack }) {
       if (!user) return;
       try {
         setCheckingBranch(true);
+
+        // 🧠 DASHBOARD INTEGRATION BYPASS LAYER
+        if (dashboardBranchId) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('role, branches(name)')
+            .eq('id', user.id)
+            .single();
+
+          const assumedRole = profile?.role || 'manager';
+          setUserRole(assumedRole);
+
+          const branchPayload = {
+            id: dashboardBranchId,
+            name: profile?.branches?.name || 'Active Operating Location'
+          };
+          setUserBranch(branchPayload);
+
+          await Promise.all([
+            fetchInv(dashboardBranchId),
+            fetchDailySales(dashboardBranchId, assumedRole)
+          ]);
+          return;
+        }
+
         const { data: profile, error } = await supabase
           .from('profiles')
           .select('branch_id, role, branches(name)')
@@ -107,7 +131,6 @@ export default function Sales({ onBack }) {
           const fetchedRole = profile.role || 'staff';
           setUserRole(fetchedRole);
 
-          // Admin clearance bypass protocol
           if (fetchedRole === 'admin') {
             const { data: allBranches, error: bError } = await supabase
               .from('branches')
@@ -116,7 +139,6 @@ export default function Sales({ onBack }) {
 
             if (!bError && allBranches && allBranches.length > 0) {
               setBranches(allBranches);
-              // Set working context to first available branch sandbox automatically
               const defaultBranch = { id: allBranches[0].id, name: allBranches[0].name };
               setUserBranch(defaultBranch);
               
@@ -126,7 +148,6 @@ export default function Sales({ onBack }) {
               ]);
             }
           } else if (profile.branch_id) {
-            // Standard Manager/Staff pipeline mapping
             const branchPayload = {
               id: profile.branch_id,
               name: profile.branches?.name || 'Assigned Location'
@@ -147,7 +168,7 @@ export default function Sales({ onBack }) {
     };
 
     resolveStaffBranch();
-  }, [user, fetchInv, fetchDailySales]);
+  }, [user, dashboardBranchId, fetchInv, fetchDailySales]);
 
   // Handle runtime administrative switch events across branch rooms
   const handleAdminBranchSwitch = async (branchId) => {
@@ -165,7 +186,6 @@ export default function Sales({ onBack }) {
     ]);
   };
 
-  // Main data fetching chains linked uniquely to resolved branch sandbox
   useEffect(() => { 
     if (!userBranch?.id) return;
 
@@ -261,6 +281,7 @@ export default function Sales({ onBack }) {
       if (!navigator.onLine) {
         await saveSaleOffline(salePayload);
         executeLocalStateDeduction();
+        if (typeof refreshMetrics === 'function') refreshMetrics();
         alert("⚠️ Mode Hors-ligne : Vente enregistrée en local !");
         return;
       }
@@ -281,13 +302,19 @@ export default function Sales({ onBack }) {
       await fetchInv();
       await fetchDailySales();
       clearFormFields();
-      alert(t('alert_sale_recorded') || "Sale Recorded Successfully!");
+      
+      // ⚡️ Trigger real-time core dashboard statement updating
+      if (typeof refreshMetrics === 'function') {
+        await refreshMetrics();
+      }
 
+      alert(t('alert_sale_recorded') || "Sale Recorded Successfully!");
     } catch (error) {
       console.error("Online push failed, falling back to local database engine:", error);
       try {
         await saveSaleOffline(salePayload);
         executeLocalStateDeduction();
+        if (typeof refreshMetrics === 'function') refreshMetrics();
         alert("📡 Réseau instable. Transaction sécurisée localement.");
       } catch (fallbackErr) {
         alert("Critical storage error: " + fallbackErr.message);
@@ -350,7 +377,6 @@ export default function Sales({ onBack }) {
               {t('sales_entry') || 'Sales Entry'}
             </h1>
             
-            {/* Context Identification & Switcher Zone */}
             <div className="flex flex-wrap gap-1.5 items-center mt-2 w-full">
               {userRole === 'admin' ? (
                 <select

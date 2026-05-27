@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useLanguage } from '../../context/LanguageContext.jsx'; 
 import { supabase } from '../../api/supabaseClient';
 import { processVoiceToData } from '../../api/gemini';
 
-export default function Inventory({ onBack }) {
+export default function Inventory({ onBack, branchId: dashboardBranchId, userRole: dashboardUserRole, refreshMetrics }) {
   const { t } = useLanguage(); 
   const [items, setItems] = useState([]);
   const [branches, setBranches] = useState([]);
@@ -13,17 +13,43 @@ export default function Inventory({ onBack }) {
   const [userMetadata, setUserMetadata] = useState({ role: 'staff', branch_id: null });
   const [loadingSession, setLoadingSession] = useState(true);
   
-  // RESTOCK PANEL STATE
   const [selectedItem, setSelectedItem] = useState(null);
   const [refillQty, setRefillQty] = useState('');
-  
   const [formData, setFormData] = useState({ name: '', stock_quantity: '', bought_price: '', selling_price: '' });
 
-  // 1. Resolve User Session Security Rank Clearance first
+  const fetchInventory = useCallback(async () => {
+    if (!selectedBranchId) return;
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('inventory')
+      .select('*')
+      .eq('branch_id', selectedBranchId)
+      .order('name', { ascending: true });
+      
+    if (!error) setItems(data || []);
+    setLoading(false);
+  }, [selectedBranchId]);
+
+  // Resolve Security Matrix Clearance Context
   useEffect(() => {
     const resolveUserSessionContext = async () => {
       try {
         setLoadingSession(true);
+
+        // 🧠 DASHBOARD PROP OPTIMIZATION INTERCEPT
+        if (dashboardBranchId && dashboardUserRole) {
+          setUserMetadata({ role: dashboardUserRole, branch_id: dashboardBranchId });
+          setSelectedBranchId(dashboardBranchId);
+          
+          const { data: branchData } = await supabase
+            .from('branches')
+            .select('*')
+            .order('name', { ascending: true });
+            
+          if (branchData) setBranches(branchData);
+          return;
+        }
+
         const { data: { user }, error: authError } = await supabase.auth.getUser();
         if (authError || !user) throw new Error("Unauthorized access token.");
 
@@ -37,7 +63,6 @@ export default function Inventory({ onBack }) {
         
         setUserMetadata({ role: profile.role, branch_id: profile.branch_id });
 
-        // 2. Load corporate branch options based on verified clearance level
         const { data: branchData, error: bError } = await supabase
           .from('branches')
           .select('*')
@@ -45,13 +70,9 @@ export default function Inventory({ onBack }) {
 
         if (!bError && branchData) {
           setBranches(branchData);
-          
-          // Enforcement Rule Engine:
           if (profile.role === 'admin') {
-            // Admin defaults to the first alphabetical option but keeps all open
             setSelectedBranchId(branchData[0]?.id || '');
           } else {
-            // Managers are strictly trapped to their assigned branch space
             setSelectedBranchId(profile.branch_id || '');
           }
         }
@@ -63,27 +84,13 @@ export default function Inventory({ onBack }) {
     };
 
     resolveUserSessionContext();
-  }, []);
-
-  // 3. Query inventory items tied SPECIFICALLY to the active branch selection room
-  const fetchInventory = async () => {
-    if (!selectedBranchId) return;
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('inventory')
-      .select('*')
-      .eq('branch_id', selectedBranchId)
-      .order('name', { ascending: true });
-      
-    if (!error) setItems(data || []);
-    setLoading(false);
-  };
+  }, [dashboardBranchId, dashboardUserRole]);
 
   useEffect(() => { 
     if (!loadingSession) {
       fetchInventory(); 
     }
-  }, [selectedBranchId, loadingSession]);
+  }, [selectedBranchId, loadingSession, fetchInventory]);
 
   const lowStockItems = items.filter(item => item.stock_quantity < 5);
   
@@ -94,7 +101,6 @@ export default function Inventory({ onBack }) {
     alert(t('market_list_copied') || "Market List copied to clipboard!");
   };
 
-  // --- RESTOCK QUANTITY INCREMENT LOGIC (Isolated to Branch) ---
   const handleRestock = async () => {
     if (!selectedItem || !refillQty) return;
     const newQty = Number(selectedItem.stock_quantity) + Number(refillQty);
@@ -109,14 +115,16 @@ export default function Inventory({ onBack }) {
       alert(`${selectedItem.name} ${t('restock_success') || 'Restocked Successfully!'}`);
       setSelectedItem(null);
       setRefillQty('');
-      fetchInventory();
+      await fetchInventory();
+      
+      // ⚡️ Fire sync notification hook up to dashboard
+      if (typeof refreshMetrics === 'function') refreshMetrics();
     } else {
       alert(error.message);
     }
     setLoading(false);
   };
 
-  // --- DELETE ENTRY ---
   const handleDeleteItem = async (item) => {
     const confirmDelete = window.confirm(`${t('security_check') || 'SECURITY CHECK'}: ${t('delete_confirm_msg') || 'Are you sure you want to permanently delete this entry?'}`);
     if (!confirmDelete) return;
@@ -129,20 +137,19 @@ export default function Inventory({ onBack }) {
 
     if (!error) {
       alert(t('delete_success') || "Entry successfully deleted from registry.");
-      fetchInventory();
+      await fetchInventory();
+      
+      // ⚡️ Fire sync notification hook up to dashboard
+      if (typeof refreshMetrics === 'function') refreshMetrics();
     } else {
       alert(error.message);
     }
     setLoading(false);
   };
 
-  // --- INVENTORY CREATION ---
   const handleCreateProduct = async (e) => {
     e.preventDefault();
-    if (!selectedBranchId) {
-      alert("Please configure and select a corporate branch location first.");
-      return;
-    }
+    if (!selectedBranchId) return alert("Please configure and select a corporate branch location first.");
 
     setLoading(true);
     const { error } = await supabase
@@ -152,19 +159,21 @@ export default function Inventory({ onBack }) {
         stock_quantity: parseInt(formData.stock_quantity) || 0,
         bought_price: parseFloat(formData.bought_price) || 0,
         selling_price: parseFloat(formData.selling_price) || 0,
-        branch_id: selectedBranchId // Automatically tags row to active branch sandbox
+        branch_id: selectedBranchId 
       }]);
 
     if (!error) {
       setFormData({ name: '', stock_quantity: '', bought_price: '', selling_price: '' });
-      fetchInventory();
+      await fetchInventory();
+      
+      // ⚡️ Fire sync notification hook up to dashboard
+      if (typeof refreshMetrics === 'function') refreshMetrics();
     } else {
       alert(error.message);
     }
     setLoading(false);
   };
 
-  // --- VOICE CAPTURE OVERHAUL ---
   const startVoiceCapture = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) return alert("Browser not supported");
@@ -184,11 +193,14 @@ export default function Inventory({ onBack }) {
             stock_quantity: parseInt(aiData.quantity) || 0,
             bought_price: parseFloat(aiData.cost) || 0,
             selling_price: parseFloat(aiData.price) || 0,
-            branch_id: selectedBranchId // Stamps voice entry directly into active branch
+            branch_id: selectedBranchId 
           }]);
-          fetchInventory();
+          await fetchInventory();
+          
+          // ⚡️ Fire sync notification hook up to dashboard
+          if (typeof refreshMetrics === 'function') refreshMetrics();
         }
-      } catch (err) { alert("AI Error"); }
+      } catch (err) { alert("AI Voice Extraction Error"); }
       setLoading(false);
     };
     recognition.start();
@@ -212,7 +224,6 @@ export default function Inventory({ onBack }) {
           <h1 className="text-xl font-black uppercase italic tracking-tight">{t('inventory_intel') || 'Inventory Intelligence'}</h1>
         </div>
 
-        {/* Dynamic Context Control Selector Box */}
         <div className="min-w-[200px]">
           {userMetadata.role === 'admin' ? (
             <select 
@@ -320,7 +331,6 @@ export default function Inventory({ onBack }) {
               <div className="flex items-center gap-4">
                 <p className="font-black text-slate-900 text-sm">{item.selling_price.toLocaleString()} <span className="text-[9px] opacity-30 font-bold">FCFA</span></p>
                 
-                {/* INTERACTION HUB */}
                 <div className="flex gap-1.5">
                   <button 
                     onClick={() => setSelectedItem(item)}
