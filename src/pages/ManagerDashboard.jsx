@@ -1,3 +1,4 @@
+// src/pages/ManagerDashboard.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext.jsx';
@@ -9,12 +10,12 @@ import Inventory from '../views/admin/Inventory';
 import Expenses from '../views/admin/Expenses';
 
 export default function ManagerDashboard() {
-  const { user } = useAuth();
+  const { user, signOut, branchId, role } = useAuth();
   const { t } = useLanguage();
 
   const [currentView, setCurrentView] = useState('home'); // home, sales, inventory, expenses
   const [loadingContext, setLoadingContext] = useState(true);
-  const [userProfile, setUserProfile] = useState({ role: 'manager', branchId: null, branchName: '' });
+  const [branchName, setBranchName] = useState('Assigned Branch Station');
   
   // Dashboard Metrics State
   const [metrics, setMetrics] = useState({
@@ -25,8 +26,8 @@ export default function ManagerDashboard() {
   });
 
   // 1. Fetch unified cross-module transaction metrics
-  const fetchDashboardMetrics = useCallback(async (branchId) => {
-    if (!branchId) return;
+  const fetchDashboardMetrics = useCallback(async (targetBranchId) => {
+    if (!targetBranchId) return;
     try {
       // Calculate shift boundary (starting from 6:00 AM today)
       const shiftTime = new Date();
@@ -41,17 +42,17 @@ export default function ManagerDashboard() {
         supabase
           .from('sales')
           .select('total_amount')
-          .eq('branch_id', branchId)
+          .eq('branch_id', targetBranchId)
           .gte('created_at', isoShiftStr),
         supabase
           .from('expenses')
           .select('amount')
-          .eq('branch_id', branchId)
+          .eq('branch_id', targetBranchId)
           .gte('created_at', isoShiftStr),
         supabase
           .from('inventory')
           .select('stock_quantity')
-          .eq('branch_id', branchId)
+          .eq('branch_id', targetBranchId)
           .lt('stock_quantity', 5)
       ]);
 
@@ -70,28 +71,30 @@ export default function ManagerDashboard() {
     }
   }, []);
 
-  // 2. Resolve account mapping context footprint on mount
+  // 2. Resolve operational branch counter name details using Context Hooks
   useEffect(() => {
     const initializeDashboard = async () => {
-      if (!user) return;
+      if (!user || !branchId) {
+        setLoadingContext(false);
+        return;
+      }
+      
       try {
         setLoadingContext(true);
-        const { data: profile, error } = await supabase
-          .from('profiles')
-          .select('role, branch_id, branches(name)')
-          .eq('id', user.id)
-          .single();
+        
+        // Single optimized ledger lookup to match the human-readable branch name string
+        const { data: branchData, error } = await supabase
+          .from('branches')
+          .select('name')
+          .eq('id', branchId)
+          .maybeSingle();
 
-        if (!error && profile) {
-          const activeBranchId = profile.branch_id;
-          const currentMetadata = {
-            role: profile.role || 'manager',
-            branchId: activeBranchId,
-            branchName: profile.branches?.name || 'Assigned Branch Station'
-          };
-          setUserProfile(currentMetadata);
-          await fetchDashboardMetrics(activeBranchId);
+        if (!error && branchData) {
+          setBranchName(branchData.name);
         }
+
+        // Run the primary performance metric counters instantly
+        await fetchDashboardMetrics(branchId);
       } catch (err) {
         console.error("Dashboard terminal loading error:", err);
       } finally {
@@ -100,12 +103,12 @@ export default function ManagerDashboard() {
     };
 
     initializeDashboard();
-  }, [user, fetchDashboardMetrics]);
+  }, [user, branchId, fetchDashboardMetrics]);
 
   // Public sync hook handler passed downward to children context windows
   const triggerMetricsRefresh = async () => {
-    if (userProfile.branchId) {
-      await fetchDashboardMetrics(userProfile.branchId);
+    if (branchId) {
+      await fetchDashboardMetrics(branchId);
     }
   };
 
@@ -121,13 +124,13 @@ export default function ManagerDashboard() {
 
   // View routing switcher matrix
   if (currentView === 'sales') {
-    return <Sales onBack={() => setCurrentView('home')} branchId={userProfile.branchId} refreshMetrics={triggerMetricsRefresh} />;
+    return <Sales onBack={() => setCurrentView('home')} branchId={branchId} refreshMetrics={triggerMetricsRefresh} />;
   }
   if (currentView === 'inventory') {
-    return <Inventory onBack={() => setCurrentView('home')} branchId={userProfile.branchId} userRole={userProfile.role} refreshMetrics={triggerMetricsRefresh} />;
+    return <Inventory onBack={() => setCurrentView('home')} branchId={branchId} userRole={role} refreshMetrics={triggerMetricsRefresh} />;
   }
   if (currentView === 'expenses') {
-    return <Expenses onBack={() => setCurrentView('home')} branchId={userProfile.branchId} userRole={userProfile.role} refreshMetrics={triggerMetricsRefresh} />;
+    return <Expenses onBack={() => setCurrentView('home')} branchId={branchId} userRole={role} refreshMetrics={triggerMetricsRefresh} />;
   }
 
   const netBalance = metrics.revenue - metrics.expenses;
@@ -141,11 +144,11 @@ export default function ManagerDashboard() {
           <div>
             <h1 className="text-2xl font-black tracking-tight text-slate-900 uppercase italic">Don Chike Executive Control</h1>
             <span className="text-[10px] font-black uppercase text-indigo-600 bg-indigo-50 px-3 py-1 rounded-md tracking-wider inline-block mt-1">
-              📍 Operational Counter: {userProfile.branchName}
+              📍 Operational Counter: {branchName}
             </span>
           </div>
           <button 
-            onClick={() => supabase.auth.signOut()} 
+            onClick={signOut} 
             className="px-4 py-2 bg-white border border-slate-200 hover:bg-red-50 hover:text-red-500 rounded-xl font-bold text-xs uppercase tracking-wide transition-all shadow-sm"
           >
             {t('sign_out') || 'Exit'}

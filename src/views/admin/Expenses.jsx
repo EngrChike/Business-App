@@ -1,3 +1,4 @@
+// src/components/Expenses.jsx (Admin Edition)
 import React, { useState, useEffect, useCallback } from 'react';
 import { useLanguage } from '../../context/LanguageContext.jsx';
 import { supabase } from '../../api/supabaseClient';
@@ -5,7 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import { saveExpenseOffline } from '../../utils/offlineStorage.js'; 
 
 export default function Expenses({ onBack, branchId: dashboardBranchId, userRole: dashboardUserRole, refreshMetrics }) {
-  const { user } = useAuth();
+  const { user, selectedBranch, role: authRole } = useAuth();
   const { t } = useLanguage();
 
   const [expensesLog, setExpensesLog] = useState([]);
@@ -50,12 +51,13 @@ export default function Expenses({ onBack, branchId: dashboardBranchId, userRole
     }
   }, [selectedBranchId]);
 
-  // Synchronize environmental clearance routing
+  // ⚡ FIXED INITIALIZATION: Synchronizes with Dashboard overrides or Context selections seamlessly
   useEffect(() => {
     const initializeSecurityContext = async () => {
       try {
         setLoadingSession(true);
 
+        // Priority 1: Component Prop overrides passed down from Admin view containers
         if (dashboardBranchId && dashboardUserRole) {
           setUserMetadata({ role: dashboardUserRole, branch_id: dashboardBranchId });
           setSelectedBranchId(dashboardBranchId);
@@ -63,19 +65,18 @@ export default function Expenses({ onBack, branchId: dashboardBranchId, userRole
           return;
         }
 
-        const { data: { user: sessionUser } } = await supabase.auth.getUser();
-        if (!sessionUser) return;
+        // Priority 2: Universal global terminal switcher selection from AuthContext
+        const currentActiveBranch = dashboardBranchId || selectedBranch;
+        const currentActiveRole = dashboardUserRole || authRole || 'admin';
 
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('role, branch_id')
-          .eq('id', sessionUser.id)
-          .single();
-
-        if (profile) {
-          setUserMetadata({ role: profile.role, branch_id: profile.branch_id });
-          setSelectedBranchId(profile.branch_id || '');
-          await fetchExpenses(profile.branch_id);
+        if (currentActiveBranch) {
+          setUserMetadata({ role: currentActiveRole, branch_id: currentActiveBranch });
+          setSelectedBranchId(currentActiveBranch);
+          await fetchExpenses(currentActiveBranch);
+        } else {
+          // Fallback mapping if no active branch selection is present in memory
+          setUserMetadata({ role: currentActiveRole, branch_id: null });
+          setSelectedBranchId('');
         }
       } catch (err) {
         console.error("Handshake fail inside expense module:", err);
@@ -85,12 +86,18 @@ export default function Expenses({ onBack, branchId: dashboardBranchId, userRole
     };
 
     initializeSecurityContext();
-  }, [dashboardBranchId, dashboardUserRole, fetchExpenses]);
+  }, [dashboardBranchId, dashboardUserRole, selectedBranch, authRole, fetchExpenses]);
 
   // Process payout logs submission
   const handleSubmitExpense = async (e) => {
     e.preventDefault();
-    if (!selectedBranchId || loading) return;
+    
+    // 🛡️ SECURITY SAFEGUARD WARNING: Warn instead of failing silently if branch isn't assigned
+    if (!selectedBranchId) {
+      alert("⚠️ Request Aborted: Please select or switch to an active operational branch terminal location on your dashboard before registering expenses.");
+      return;
+    }
+    if (loading) return;
 
     const payoutPayload = {
       description: formData.description.trim(),
@@ -124,7 +131,7 @@ export default function Expenses({ onBack, branchId: dashboardBranchId, userRole
       if (error) throw error;
 
       setFormData({ description: '', amount: '', category: 'Logistics' });
-      await fetchExpenses();
+      await fetchExpenses(selectedBranchId);
       
       if (typeof refreshMetrics === 'function') {
         await refreshMetrics();
@@ -154,7 +161,7 @@ export default function Expenses({ onBack, branchId: dashboardBranchId, userRole
     try {
       const { error } = await supabase.from('expenses').delete().eq('id', id);
       if (!error) {
-        await fetchExpenses();
+        await fetchExpenses(selectedBranchId);
         if (typeof refreshMetrics === 'function') {
           await refreshMetrics();
         }
@@ -190,6 +197,13 @@ export default function Expenses({ onBack, branchId: dashboardBranchId, userRole
         </span>
       </div>
 
+      {/* 🛡️ VISUAL UNMAPPED TERMINAL NOTICE */}
+      {!selectedBranchId && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-3xl p-4 mb-6 text-xs font-bold text-center uppercase tracking-wider">
+          ⚠️ Operational branch terminal unassigned. Please select a dynamic counter location on your administrator summary menu layout.
+        </div>
+      )}
+
       {/* OVERHEAD RECORDING MANIFEST */}
       <form onSubmit={handleSubmitExpense} className="bg-white p-6 rounded-[35px] shadow-sm border mb-6">
         <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Log Outgoing Expenditure</h2>
@@ -203,7 +217,7 @@ export default function Expenses({ onBack, branchId: dashboardBranchId, userRole
               value={formData.description}
               onChange={e => setFormData({...formData, description: e.target.value})}
               required
-              disabled={loading}
+              disabled={loading || !selectedBranchId}
             />
           </div>
           <div>
@@ -211,7 +225,7 @@ export default function Expenses({ onBack, branchId: dashboardBranchId, userRole
               className="w-full p-4 bg-gray-50 rounded-2xl font-bold border-none text-sm focus:ring-2 focus:ring-red-500 text-slate-700"
               value={formData.category}
               onChange={e => setFormData({...formData, category: e.target.value})}
-              disabled={loading}
+              disabled={loading || !selectedBranchId}
             >
               {expenseCategories.map(cat => (
                 <option key={cat} value={cat}>{cat}</option>
@@ -229,12 +243,12 @@ export default function Expenses({ onBack, branchId: dashboardBranchId, userRole
             value={formData.amount}
             onChange={e => setFormData({...formData, amount: e.target.value})}
             required
-            disabled={loading}
+            disabled={loading || !selectedBranchId}
           />
           <button 
             type="submit" 
-            disabled={loading}
-            className="bg-slate-900 text-white px-8 rounded-2xl font-black uppercase text-xs hover:bg-black transition-all active:scale-95 disabled:opacity-50"
+            disabled={loading || !selectedBranchId}
+            className="bg-slate-900 text-white px-8 rounded-2xl font-black uppercase text-xs hover:bg-black transition-all active:scale-95 disabled:opacity-40"
           >
             {loading ? "Processing..." : "Log Cost Payout"}
           </button>
