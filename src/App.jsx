@@ -14,8 +14,15 @@ function AppContent() {
   const [forceAdminBypass, setForceAdminBypass] = useState(false);
   const [checkingLocalToken, setCheckingLocalToken] = useState(true);
 
-  // ⚡ INSTANT SUPABASE TOKEN BACKUP CHANNEL
+  // ⚡ INSTANT SUPABASE TOKEN BACKUP CHANNEL & STATE SAFETY RESET
   useEffect(() => {
+    // If user is completely unauthenticated, reset the bypass immediately to avoid dashboard leakage
+    if (!authenticated) {
+      setForceAdminBypass(false);
+      setCheckingLocalToken(false);
+      return;
+    }
+
     async function verifyLocalSession() {
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -23,9 +30,13 @@ function AppContent() {
         
         if (email === 'donchike21@gmail.com' || email.includes('admin')) {
           setForceAdminBypass(true);
+        } else {
+          // 🛡️ CRITICAL SECURITY FIX: Explicitly turn off the bypass if the session isn't administrative
+          setForceAdminBypass(false);
         }
       } catch (err) {
         console.error("Local storage sync error:", err);
+        setForceAdminBypass(false);
       } finally {
         setCheckingLocalToken(false);
       }
