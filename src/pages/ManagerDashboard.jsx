@@ -4,7 +4,6 @@ import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext.jsx';
 import { supabase } from '../api/supabaseClient';
 
-// PERFECTLY MAPPED PATHS BASED ON YOUR DIRECTORY TREE
 import Sales from '../views/staff/Sales';
 import Inventory from '../views/admin/Inventory';
 import Expenses from '../views/admin/Expenses';
@@ -13,11 +12,10 @@ export default function ManagerDashboard() {
   const { user, signOut, branchId, role } = useAuth();
   const { t } = useLanguage();
 
-  const [currentView, setCurrentView] = useState('home'); // home, sales, inventory, expenses
+  const [currentView, setCurrentView] = useState('home'); 
   const [loadingContext, setLoadingContext] = useState(true);
   const [branchName, setBranchName] = useState('Assigned Branch Station');
   
-  // Dashboard Metrics State
   const [metrics, setMetrics] = useState({
     revenue: 0,
     expenses: 0,
@@ -25,11 +23,9 @@ export default function ManagerDashboard() {
     salesCount: 0
   });
 
-  // 1. Fetch unified cross-module transaction metrics
   const fetchDashboardMetrics = useCallback(async (targetBranchId) => {
     if (!targetBranchId) return;
     try {
-      // Calculate shift boundary (starting from 6:00 AM today)
       const shiftTime = new Date();
       if (shiftTime.getHours() < 6) {
         shiftTime.setDate(shiftTime.getDate() - 1);
@@ -37,7 +33,6 @@ export default function ManagerDashboard() {
       shiftTime.setHours(6, 0, 0, 0);
       const isoShiftStr = shiftTime.toISOString();
 
-      // Parallel metric querying pipeline
       const [salesRes, expensesRes, inventoryRes] = await Promise.all([
         supabase
           .from('sales')
@@ -71,7 +66,6 @@ export default function ManagerDashboard() {
     }
   }, []);
 
-  // 2. Resolve operational branch counter name details using Context Hooks
   useEffect(() => {
     const initializeDashboard = async () => {
       if (!user || !branchId) {
@@ -82,7 +76,6 @@ export default function ManagerDashboard() {
       try {
         setLoadingContext(true);
         
-        // Single optimized ledger lookup to match the human-readable branch name string
         const { data: branchData, error } = await supabase
           .from('branches')
           .select('name')
@@ -93,7 +86,6 @@ export default function ManagerDashboard() {
           setBranchName(branchData.name);
         }
 
-        // Run the primary performance metric counters instantly
         await fetchDashboardMetrics(branchId);
       } catch (err) {
         console.error("Dashboard terminal loading error:", err);
@@ -105,7 +97,6 @@ export default function ManagerDashboard() {
     initializeDashboard();
   }, [user, branchId, fetchDashboardMetrics]);
 
-  // Public sync hook handler passed downward to children context windows
   const triggerMetricsRefresh = async () => {
     if (branchId) {
       await fetchDashboardMetrics(branchId);
@@ -122,7 +113,7 @@ export default function ManagerDashboard() {
     );
   }
 
-  // View routing switcher matrix
+  // ROUTING MATRICES - Injection points optimized to link seamlessly with Expenses.jsx
   if (currentView === 'sales') {
     return <Sales onBack={() => setCurrentView('home')} branchId={branchId} refreshMetrics={triggerMetricsRefresh} />;
   }
@@ -155,7 +146,7 @@ export default function ManagerDashboard() {
           </button>
         </div>
 
-        {/* METRICS DISPATCH COMPASS STATS CARDS */}
+        {/* METRICS METERS */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
           <div className="bg-white p-6 rounded-[28px] border border-slate-100 shadow-sm">
             <span className="text-[9px] font-black tracking-widest text-emerald-500 uppercase block mb-1">Shift Inflow</span>
@@ -178,7 +169,7 @@ export default function ManagerDashboard() {
           </div>
         </div>
 
-        {/* INVENTORY CRITICAL ALERT INTERCEPT STRIP */}
+        {/* CRITICAL STOCK NOTIFICATION */}
         {metrics.lowStockCount > 0 && (
           <div onClick={() => setCurrentView('inventory')} className="bg-orange-500 hover:bg-orange-600 cursor-pointer p-4 rounded-2xl text-white font-bold text-xs uppercase tracking-wider flex justify-between items-center mb-6 shadow-md transition-all">
             <span>⚠️ Storage Warning: {metrics.lowStockCount} item variants are critically low!</span>
@@ -186,13 +177,10 @@ export default function ManagerDashboard() {
           </div>
         )}
 
-        {/* NAVIGATION SELECTION CONSOLE WHEEL */}
+        {/* APPLICATION BUTTON CONSOLE */}
         <h2 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 px-1">Management Hub Applications</h2>
         <div className="grid grid-cols-1 gap-3">
-          <button 
-            onClick={() => setCurrentView('sales')} 
-            className="w-full p-5 bg-white border border-slate-100 hover:border-indigo-200 rounded-[24px] shadow-sm flex justify-between items-center group transition-all"
-          >
+          <button onClick={() => setCurrentView('sales')} className="w-full p-5 bg-white border border-slate-100 hover:border-indigo-200 rounded-[24px] shadow-sm flex justify-between items-center group transition-all">
             <div className="text-left">
               <h3 className="font-black text-sm text-slate-800 uppercase tracking-tight group-hover:text-indigo-600 transition-colors">Sales Processing Terminal</h3>
               <p className="text-xs text-slate-400 font-medium mt-0.5">Register client transactions, cash receipts, and manage tab debts.</p>
@@ -200,21 +188,15 @@ export default function ManagerDashboard() {
             <span className="text-xl group-hover:translate-x-1 transition-transform">💰</span>
           </button>
 
-          <button 
-            onClick={() => setCurrentView('inventory')} 
-            className="w-full p-5 bg-white border border-slate-100 hover:border-indigo-200 rounded-[24px] shadow-sm flex justify-between items-center group transition-all"
-          >
+          <button onClick={() => setCurrentView('inventory')} className="w-full p-5 bg-white border border-slate-100 hover:border-indigo-200 rounded-[24px] shadow-sm flex justify-between items-center group transition-all">
             <div className="text-left">
               <h3 className="font-black text-sm text-slate-800 uppercase tracking-tight group-hover:text-indigo-600 transition-colors">Inventory Intelligence</h3>
-              <p className="text-xs text-slate-400 font-medium mt-0.5">Log logistics entry refills, analyze item counts, and configure prices via voice.</p>
+              <p className="text-xs text-slate-400 font-medium mt-0.5">Log logistics entry refills, analyze item counts, and configure prices.</p>
             </div>
             <span className="text-xl group-hover:translate-x-1 transition-transform">📦</span>
           </button>
 
-          <button 
-            onClick={() => setCurrentView('expenses')} 
-            className="w-full p-5 bg-white border border-slate-100 hover:border-red-200 rounded-[24px] shadow-sm flex justify-between items-center group transition-all"
-          >
+          <button onClick={() => setCurrentView('expenses')} className="w-full p-5 bg-white border border-slate-100 hover:border-red-200 rounded-[24px] shadow-sm flex justify-between items-center group transition-all">
             <div className="text-left">
               <h3 className="font-black text-sm text-slate-800 uppercase tracking-tight group-hover:text-[#FF5A50] transition-colors">Expense Registry Console</h3>
               <p className="text-xs text-slate-400 font-medium mt-0.5">Track branch overhead payouts, shop utilities, and custom supply purchases.</p>
