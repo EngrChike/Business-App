@@ -80,7 +80,6 @@ export default function Expenses({ onBack, branchId: dashboardBranchId, userRole
             setSelectedBranchId(resolvedBranch);
             await fetchExpenses(resolvedBranch);
           } else {
-            // Default fallback if no branch context is found to prevent blank states
             setSelectedBranchId('HEADQUARTERS');
             await fetchExpenses('HEADQUARTERS');
           }
@@ -105,7 +104,7 @@ export default function Expenses({ onBack, branchId: dashboardBranchId, userRole
     e.preventDefault();
     if (loading) return;
 
-    // CRITICAL FIX: Ensure blank strings or HEADQUARTERS convert to explicit database NULL targets
+    // Convert string tags or empty states safely to real DB NULL formats for General/HQ expenses
     const targetBranchPayloadId = (!selectedBranchId || selectedBranchId === 'HEADQUARTERS') ? null : selectedBranchId;
 
     const payoutPayload = {
@@ -118,8 +117,10 @@ export default function Expenses({ onBack, branchId: dashboardBranchId, userRole
     };
 
     setLoading(true);
-    try {
-      if (!navigator.onLine) {
+
+    // STEP A: Handle absolute hard offline status first
+    if (!navigator.onLine) {
+      try {
         await saveExpenseOffline(payoutPayload);
         const tempItem = {
           id: 'temp_exp_' + Date.now(),
@@ -129,14 +130,28 @@ export default function Expenses({ onBack, branchId: dashboardBranchId, userRole
         };
         setExpensesLog(prev => [tempItem, ...prev]);
         setFormData({ description: '', amount: '', category: 'Logistics' });
-        alert("⚠️ Offline Mode: Payout saved in secondary local storage!");
+        alert("⚠️ Device Offline: Expense logged locally onto your storage deck.");
         if (typeof refreshMetrics === 'function') refreshMetrics();
+      } catch (storeErr) {
+        alert("Critical storage error: " + storeErr.message);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // STEP B: Device is online -> Push straight to database and expose any schema failures clearly
+    try {
+      const { error } = await supabase.from('expenses').insert([payoutPayload]);
+      
+      if (error) {
+        // This will display the EXACT database column error or RLS policy block message
+        console.error("Supabase Database Rejection Details:", error);
+        alert(`❌ Database Error: ${error.message}\nDetails: ${error.details || 'Check column layout rules'}`);
         return;
       }
 
-      const { error } = await supabase.from('expenses').insert([payoutPayload]);
-      if (error) throw error;
-
+      // Success path clear
       setFormData({ description: '', amount: '', category: 'Logistics' });
       await fetchExpenses(selectedBranchId);
       
@@ -146,14 +161,8 @@ export default function Expenses({ onBack, branchId: dashboardBranchId, userRole
 
       alert("Expenditure verified and logged perfectly.");
     } catch (err) {
-      console.error("Primary pool push blocked:", err);
-      try {
-        await saveExpenseOffline(payoutPayload);
-        alert("📡 Unstable network link detected. Transaction secured locally for sync.");
-        if (typeof refreshMetrics === 'function') refreshMetrics();
-      } catch (storeErr) {
-        alert("Critical storage error: " + storeErr.message);
-      }
+      console.error("Critical component error crash loop:", err);
+      alert(`❌ System Error: ${err.message || err}`);
     } finally {
       setLoading(false);
     }
@@ -181,7 +190,6 @@ export default function Expenses({ onBack, branchId: dashboardBranchId, userRole
 
   const totalDailyExpenditure = expensesLog.reduce((sum, item) => sum + (item.amount || 0), 0);
   
-  // Helper to resolve current readable ledger context name
   const currentActiveBranchName = selectedBranchId === 'HEADQUARTERS' 
     ? 'Headquarters (General)' 
     : (branches.find(b => b.id === selectedBranchId)?.name || 'Assigned Location');
@@ -208,7 +216,7 @@ export default function Expenses({ onBack, branchId: dashboardBranchId, userRole
         </span>
       </div>
 
-      {/* DYNAMIC ADMIN DROPDOWN (Hidden automatically from standard staff) */}
+      {/* DYNAMIC ADMIN DROPDOWN */}
       {effectiveRole === 'admin' && (
         <div className="bg-white p-4 rounded-3xl border shadow-sm mb-6 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div>
