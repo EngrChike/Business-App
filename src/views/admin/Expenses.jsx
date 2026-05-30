@@ -73,11 +73,16 @@ export default function Expenses({ onBack, branchId: dashboardBranchId, userRole
           await fetchExpenses(initialAdminBranch);
         } 
         
-        // MANAGER FLOW: Lock boundaries down to dashboard context
+        // MANAGER / STAFF FLOW: Lock boundaries down to assigned context safely
         else {
-          if (dashboardBranchId) {
-            setSelectedBranchId(dashboardBranchId);
-            await fetchExpenses(dashboardBranchId);
+          const resolvedBranch = dashboardBranchId || selectedBranch;
+          if (resolvedBranch) {
+            setSelectedBranchId(resolvedBranch);
+            await fetchExpenses(resolvedBranch);
+          } else {
+            // Default fallback if no branch context is found to prevent blank states
+            setSelectedBranchId('HEADQUARTERS');
+            await fetchExpenses('HEADQUARTERS');
           }
         }
       } catch (err) {
@@ -100,7 +105,8 @@ export default function Expenses({ onBack, branchId: dashboardBranchId, userRole
     e.preventDefault();
     if (loading) return;
 
-    const targetBranchPayloadId = selectedBranchId === 'HEADQUARTERS' ? null : selectedBranchId;
+    // CRITICAL FIX: Ensure blank strings or HEADQUARTERS convert to explicit database NULL targets
+    const targetBranchPayloadId = (!selectedBranchId || selectedBranchId === 'HEADQUARTERS') ? null : selectedBranchId;
 
     const payoutPayload = {
       description: formData.description.trim(),
@@ -111,46 +117,46 @@ export default function Expenses({ onBack, branchId: dashboardBranchId, userRole
       staff_email: user?.email || 'N/A'
     };
 
-    setLoading(true);
-    try {
-      if (!navigator.onLine) {
-        await saveExpenseOffline(payoutPayload);
-        const tempItem = {
-          id: 'temp_exp_' + Date.now(),
-          ...payoutPayload,
-          created_at: new Date().toISOString(),
-          description: `${payoutPayload.description} (En attente de sync ⏳)`
-        };
-        setExpensesLog(prev => [tempItem, ...prev]);
-        setFormData({ description: '', amount: '', category: 'Logistics' });
-        alert("⚠️ Mode Hors-ligne : Payout safe in secondary memory!");
-        if (typeof refreshMetrics === 'function') refreshMetrics();
-        return;
-      }
+    setLoading(true);
+    try {
+      if (!navigator.onLine) {
+        await saveExpenseOffline(payoutPayload);
+        const tempItem = {
+          id: 'temp_exp_' + Date.now(),
+          ...payoutPayload,
+          created_at: new Date().toISOString(),
+          description: `${payoutPayload.description} (Pending Sync ⏳)`
+        };
+        setExpensesLog(prev => [tempItem, ...prev]);
+        setFormData({ description: '', amount: '', category: 'Logistics' });
+        alert("⚠️ Offline Mode: Payout saved in secondary local storage!");
+        if (typeof refreshMetrics === 'function') refreshMetrics();
+        return;
+      }
 
-      const { error } = await supabase.from('expenses').insert([payoutPayload]);
-      if (error) throw error;
+      const { error } = await supabase.from('expenses').insert([payoutPayload]);
+      if (error) throw error;
 
-      setFormData({ description: '', amount: '', category: 'Logistics' });
-      await fetchExpenses(selectedBranchId);
-      
-      if (typeof refreshMetrics === 'function') {
-        await refreshMetrics();
-      }
+      setFormData({ description: '', amount: '', category: 'Logistics' });
+      await fetchExpenses(selectedBranchId);
+      
+      if (typeof refreshMetrics === 'function') {
+        await refreshMetrics();
+      }
 
-      alert("Expenditure verified and logged perfectly.");
-    } catch (err) {
-      console.error("Primary pool push blocked:", err);
-      try {
-        await saveExpenseOffline(payoutPayload);
-        alert("📡 Réseau instable. Transaction sécurisée localement.");
-        if (typeof refreshMetrics === 'function') refreshMetrics();
-       } catch (storeErr) {
-         alert("Critical storage error: " + storeErr.message);
-       }
-     } finally {
-       setLoading(false);
-     }
+      alert("Expenditure verified and logged perfectly.");
+    } catch (err) {
+      console.error("Primary pool push blocked:", err);
+      try {
+        await saveExpenseOffline(payoutPayload);
+        alert("📡 Unstable network link detected. Transaction secured locally for sync.");
+        if (typeof refreshMetrics === 'function') refreshMetrics();
+      } catch (storeErr) {
+        alert("Critical storage error: " + storeErr.message);
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleDeleteExpense = async (id) => {
@@ -174,6 +180,11 @@ export default function Expenses({ onBack, branchId: dashboardBranchId, userRole
   };
 
   const totalDailyExpenditure = expensesLog.reduce((sum, item) => sum + (item.amount || 0), 0);
+  
+  // Helper to resolve current readable ledger context name
+  const currentActiveBranchName = selectedBranchId === 'HEADQUARTERS' 
+    ? 'Headquarters (General)' 
+    : (branches.find(b => b.id === selectedBranchId)?.name || 'Assigned Location');
 
   if (loadingSession) {
     return (
@@ -197,7 +208,7 @@ export default function Expenses({ onBack, branchId: dashboardBranchId, userRole
         </span>
       </div>
 
-      {/* DYNAMIC ADMIN DROPDOWN (Hidden automatically from managers) */}
+      {/* DYNAMIC ADMIN DROPDOWN (Hidden automatically from standard staff) */}
       {effectiveRole === 'admin' && (
         <div className="bg-white p-4 rounded-3xl border shadow-sm mb-6 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div>
@@ -220,7 +231,7 @@ export default function Expenses({ onBack, branchId: dashboardBranchId, userRole
       {/* EXPENSE ENTRY FORM */}
       <form onSubmit={handleSubmitExpense} className="bg-white p-6 rounded-[35px] shadow-sm border mb-6">
         <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">
-          Log Outgoing Expenditure ({selectedBranchId === 'HEADQUARTERS' ? 'Headquarters' : 'Selected Location'})
+          Log Outgoing Expenditure ({currentActiveBranchName})
         </h2>
         
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
@@ -274,7 +285,7 @@ export default function Expenses({ onBack, branchId: dashboardBranchId, userRole
       <div className="bg-white rounded-[35px] border shadow-sm overflow-hidden">
         <div className="p-5 bg-slate-50/50 border-b flex justify-between items-center">
           <h2 className="font-extrabold text-xs text-slate-400 uppercase tracking-wider">
-            Today's Ledger: {selectedBranchId === 'HEADQUARTERS' ? 'Headquarters' : 'Selected Location'}
+            Today's Ledger: {currentActiveBranchName}
           </h2>
           <div className="bg-red-500 text-white px-3 py-0.5 rounded-full text-[10px] font-extrabold">{expensesLog.length}</div>
         </div>
