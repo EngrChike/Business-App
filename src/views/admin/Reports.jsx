@@ -102,26 +102,33 @@ export default function Reports({ onBack }) {
       return;
     }
 
-    const currentAmount = Number(sale.total_amount || sale.total_price || 0);
+    // 🌟 FIX: total_amount tracks the changing remaining debt balance. total_price locks down the original transaction value.
+    const currentAmount = Number(sale.total_amount || 0);
+    const originalPrice = Number(sale.total_price || sale.total_amount || 0); 
     const clientIdentity = sale.customer_name || t('walking_customer') || "Walking Customer";
     
     const isComplete = window.confirm(
-      `💰 Debtor: ${clientIdentity}\nBalance Due: ${currentAmount.toLocaleString()} FCFA\n\nIs the payment COMPLETE? \n[Click OK for YES, Cancel for PARTIAL payment]`
+      `💰 Debtor: ${clientIdentity}\nRemaining Balance: ${currentAmount.toLocaleString()} FCFA\nOriginal Value: ${originalPrice.toLocaleString()} FCFA\n\nIs this current payment COMPLETE? \n[Click OK for FULL SETTLEMENT, Cancel for a PARTIAL payment installment]`
     );
 
     let updateData = {};
 
     if (isComplete) {
       const confirmFull = window.confirm(
-        `Are you sure you want to fully settle this debt? Press OK to confirm.`
+        `Are you sure you want to fully settle this account? Press OK to confirm.`
       );
       if (!confirmFull) return;
 
-      updateData = { payment_status: 'paid', is_verified: true };
+      // 🌟 FIX: Restore total_amount back to the original full valuation so revenue tracking catches the complete amount
+      updateData = { 
+        payment_status: 'paid', 
+        is_verified: true,
+        total_amount: originalPrice
+      };
     } else {
       // --- PARTIAL SETTLEMENT WORKFLOW ---
       const userInput = window.prompt(
-        `Enter the amount paid by ${clientIdentity} (Current total: ${currentAmount.toLocaleString()} FCFA):`
+        `Enter the installment amount paid by ${clientIdentity} (Remaining balance: ${currentAmount.toLocaleString()} FCFA):`
       );
 
       if (userInput === null || userInput.trim() === "") return;
@@ -142,19 +149,25 @@ export default function Reports({ onBack }) {
 
       if (remainingBalance === 0) {
         const confirmFullPartial = window.confirm(
-          `This amount will fully clear the debt. Press OK to confirm.`
+          `This amount completely clears the remaining balance. Press OK to switch account to PAID.`
         );
         if (!confirmFullPartial) return;
-        updateData = { payment_status: 'paid', is_verified: true };
+        
+        // 🌟 FIX: Fully paid up, reset total_amount back to original contract anchor
+        updateData = { 
+          payment_status: 'paid', 
+          is_verified: true,
+          total_amount: originalPrice
+        };
       } else {
         const confirmPartial = window.confirm(
-          `Confirm payment of ${amountPaid.toLocaleString()} FCFA.\nNew remaining balance will be: ${remainingBalance.toLocaleString()} FCFA.\n\nPress OK to confirm.`
+          `Confirm collection of ${amountPaid.toLocaleString()} FCFA.\nNew outstanding balance will be: ${remainingBalance.toLocaleString()} FCFA.\n\nPress OK to update log.`
         );
         if (!confirmPartial) return;
 
+        // 🌟 FIX: Lower the floating total_amount debt tracker, but leave total_price completely untouched!
         updateData = { 
-          total_amount: remainingBalance,
-          total_price: remainingBalance
+          total_amount: remainingBalance
         };
       }
     }
@@ -176,9 +189,9 @@ export default function Reports({ onBack }) {
     }
   };
 
-  // Metric Calculation Aggregations
-  const totalRevenue = salesData.filter(s => s.payment_status === 'paid').reduce((sum, s) => sum + Number(s.total_amount || s.total_price || 0), 0);
-  const totalDebt = salesData.filter(s => s.payment_status === 'debt').reduce((sum, s) => sum + Number(s.total_amount || s.total_price || 0), 0);
+  // Metric Calculation Aggregations — 🌟 Updated to accurately scan calculated structural balances
+  const totalRevenue = salesData.filter(s => s.payment_status === 'paid').reduce((sum, s) => sum + Number(s.total_amount || 0), 0);
+  const totalDebt = salesData.filter(s => s.payment_status === 'debt').reduce((sum, s) => sum + Number(s.total_amount || 0), 0);
   const totalExpenses = expenseData.reduce((sum, e) => sum + Number(e.amount || 0), 0);
   const netProfit = totalRevenue - totalExpenses;
 
@@ -204,7 +217,6 @@ export default function Reports({ onBack }) {
           </div>
           
           <div className="w-full md:w-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-            {/* EXECUTIVE MULTI-BRANCH SELECTOR DROP-DOWN */}
             {isAdmin && (
               <select
                 value={selectedBranchId}
@@ -222,7 +234,7 @@ export default function Reports({ onBack }) {
               onClick={() => window.print()}
               className="bg-[#1C1B1F] text-[#F4F3ED] px-6 py-3.5 rounded-2xl font-bold text-xs uppercase tracking-widest shadow-sm hover:opacity-90 transition-all active:scale-98 text-center"
             >
-              📥 {t('print_summary_btn') ? t('print_summary_btn').replace('📄', '') : "Print Statement"}
+              {t('print_summary_btn') ? t('print_summary_btn').replace('📄', '') : "Print Statement"}
             </button>
           </div>
         </div>
@@ -235,11 +247,9 @@ export default function Reports({ onBack }) {
           </div>
         )}
 
-        {/* --- EXECUTIVE HIGH-FIDELITY METRICS GRID --- */}
+        {/* --- METRICS GRID --- */}
         {!loading && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
-            
-            {/* Box 1: Inflows */}
             <div className="bg-white p-6 rounded-[24px] shadow-sm border border-slate-100 flex flex-col justify-between min-h-[128px]">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Verified Inflow</span>
               <div>
@@ -248,7 +258,6 @@ export default function Reports({ onBack }) {
               </div>
             </div>
 
-            {/* Box 2: Expenses Outflows */}
             <div className="bg-white p-6 rounded-[24px] shadow-sm border border-slate-100 flex flex-col justify-between min-h-[128px]">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Operational Outflow</span>
               <div>
@@ -257,7 +266,6 @@ export default function Reports({ onBack }) {
               </div>
             </div>
 
-            {/* Box 3: Debts Warning Panel */}
             <div className="bg-[#FFEBEA] p-6 rounded-[24px] flex flex-col justify-between min-h-[128px] border border-[#FFD0CD]">
               <div className="flex justify-between items-center">
                 <span className="text-[10px] font-bold text-[#FF5A50] uppercase tracking-widest">Uncollected Debt</span>
@@ -271,7 +279,6 @@ export default function Reports({ onBack }) {
               </div>
             </div>
 
-            {/* Box 4: Disposable Margin */}
             <div className="bg-[#E8F5E9] p-6 rounded-[24px] border border-[#C8E6C9] flex flex-col justify-between min-h-[128px]">
               <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-widest">Net Disposable Profit</span>
               <div>
@@ -279,7 +286,6 @@ export default function Reports({ onBack }) {
                 <span className="text-xs font-bold text-emerald-600 opacity-70 ml-1">FCFA</span>
               </div>
             </div>
-
           </div>
         )}
 
@@ -310,8 +316,6 @@ export default function Reports({ onBack }) {
                     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
                     .map((item, idx) => (
                       <tr key={idx} className="hover:bg-slate-50/30 transition-colors">
-                        
-                        {/* TIMESTAMP COLUMN */}
                         <td className="p-5 text-xs font-semibold text-slate-600">
                           {new Date(item.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })} 
                           <span className="block text-[10px] text-slate-400 font-normal mt-0.5">
@@ -319,7 +323,6 @@ export default function Reports({ onBack }) {
                           </span>
                         </td>
                         
-                        {/* TAG BADGE */}
                         <td className="p-5">
                           <span className={`text-[9px] font-black px-2.5 py-1 rounded-md tracking-wider ${
                             item.isExpense ? 'bg-red-50 text-[#FF5A50]' : 'bg-indigo-50 text-[#3F51B5]'
@@ -328,7 +331,6 @@ export default function Reports({ onBack }) {
                           </span>
                         </td>
 
-                        {/* ENTITY DESCRIPTION DESC */}
                         <td className="p-5 font-bold text-slate-800 text-sm tracking-tight">
                           {item.isExpense 
                             ? (t(`cat_${item.category?.toLowerCase().replace(' ', '_')}`) || item.category) 
@@ -339,14 +341,18 @@ export default function Reports({ onBack }) {
                               {t('client_label') || 'Client'}: {item.customer_name || t('walking_customer') || 'Walking Customer'}
                             </span>
                           )}
+                          {/* 🌟 USER INTERFACE ADDITION: Clear progressive visibility metrics for multi-stage payments */}
+                          {!item.isExpense && item.payment_status === 'debt' && Number(item.total_amount) < Number(item.total_price) && (
+                            <span className="block text-[10px] text-indigo-600 font-black normal-case mt-1 bg-indigo-50/50 px-2 py-0.5 rounded-md inline-block">
+                              ⏳ Collected: {(Number(item.total_price) - Number(item.total_amount)).toLocaleString()} / Contract Total: {Number(item.total_price).toLocaleString()} FCFA
+                            </span>
+                          )}
                         </td>
 
-                        {/* FINANCIAL VALUE */}
                         <td className={`p-5 text-right font-black text-sm tracking-tight ${item.isExpense ? 'text-[#FF5A50]' : 'text-slate-900'}`}>
-                          {item.isExpense ? '-' : '+'}{Math.floor(item.amount || item.total_amount || item.total_price || 0).toLocaleString()}
+                          {item.isExpense ? '-' : '+'}{Math.floor(item.amount || item.total_amount || 0).toLocaleString()}
                         </td>
 
-                        {/* RECONCILIATION CTAS */}
                         <td className="p-5 text-center">
                           {item.payment_status === 'debt' ? (
                             isAdmin ? (
