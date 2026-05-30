@@ -3,7 +3,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useLanguage } from '../../context/LanguageContext.jsx';
 import { supabase } from '../../api/supabaseClient';
 import { useAuth } from '../../context/AuthContext';
-import { saveExpenseOffline } from '../../utils/offlineStorage.js'; 
 
 export default function Expenses({ onBack, branchId: dashboardBranchId, userRole: dashboardUserRole, refreshMetrics }) {
   const { user, selectedBranch, role: authRole } = useAuth();
@@ -24,7 +23,7 @@ export default function Expenses({ onBack, branchId: dashboardBranchId, userRole
 
   const expenseCategories = ['Logistics', 'Utilities', 'Restock', 'Staff Welfare', 'Rent', 'Others'];
 
-  // 1. Core query engine (Differentiates between specific locations and HQ)
+  // 1. Core query engine
   const fetchExpenses = useCallback(async (branchId) => {
     setLoading(true);
     try {
@@ -102,45 +101,24 @@ export default function Expenses({ onBack, branchId: dashboardBranchId, userRole
 
     const targetBranchPayloadId = (!selectedBranchId || selectedBranchId === 'HEADQUARTERS') ? null : selectedBranchId;
 
-    // FIX: Changed 'created_by' to 'user_id' to match standard database schemas
+    // EXACT SCHEMA MATCHING PAYLOAD
     const payoutPayload = {
       description: formData.description.trim(),
       amount: parseFloat(formData.amount) || 0,
       category: formData.category,
       branch_id: targetBranchPayloadId,
-      user_id: user?.id, // <-- Adjusted from created_by to user_id
-      staff_email: user?.email || 'N/A'
+      staff_id: user?.id || null,      // Fixed: Matches 'staff_id' column in your screenshot
+      status: 'Completed'              // Fixed: Matches 'status' column in your screenshot
     };
 
     setLoading(true);
-
-    if (!navigator.onLine) {
-      try {
-        await saveExpenseOffline(payoutPayload);
-        const tempItem = {
-          id: 'temp_exp_' + Date.now(),
-          ...payoutPayload,
-          created_at: new Date().toISOString(),
-          description: `${payoutPayload.description} (Pending Sync ⏳)`
-        };
-        setExpensesLog(prev => [tempItem, ...prev]);
-        setFormData({ description: '', amount: '', category: 'Logistics' });
-        alert("⚠️ Device Offline: Expense logged locally onto your storage deck.");
-        if (typeof refreshMetrics === 'function') refreshMetrics();
-      } catch (storeErr) {
-        alert("Critical storage error: " + storeErr.message);
-      } finally {
-        setLoading(false);
-      }
-      return;
-    }
 
     try {
       const { error } = await supabase.from('expenses').insert([payoutPayload]);
       
       if (error) {
         console.error("Supabase Database Rejection Details:", error);
-        alert(`❌ Database Error: ${error.message}\nDetails: ${error.details || 'Verify column alignment.'}`);
+        alert(`❌ Database Error: ${error.message}\nDetails: ${error.details || 'Check column layout rules'}`);
         return;
       }
 
@@ -153,7 +131,7 @@ export default function Expenses({ onBack, branchId: dashboardBranchId, userRole
 
       alert("Expenditure verified and logged perfectly.");
     } catch (err) {
-      console.error("Critical component error crash loop:", err);
+      console.error("Critical component execution error:", err);
       alert(`❌ System Error: ${err.message || err}`);
     } finally {
       setLoading(false);
