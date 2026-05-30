@@ -1,21 +1,27 @@
 // src/context/AuthContext.jsx
-import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo, useRef } from 'react';
 import { supabase } from '../api/supabaseClient.js';
 
 const AuthContext = createContext(null);
 
+// ⏱️ CONFIGURATION: Set the maximum inactivity time limit here
+// 10 * 60 * 1000 = 10 Minutes (Change the 10 to any number of minutes you want)
+const INACTIVITY_LIMIT = 30 * 1000; 
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState({ role: null, branch_id: null, is_active: true });
-  const [selectedBranch, setSelectedBranch] = useState(null); // Tracks active operational terminal location
+  const [selectedBranch, setSelectedBranch] = useState(null); 
   const [loading, setLoading] = useState(true);
+
+  // Reference pointer to track the active background countdown timer
+  const inactivityTimeoutRef = useRef(null);
 
   /**
    * Fetches backend profile database keys with an instant high-priority administrative 
    * email override bypass to break circular RLS lookup loop locks.
    */
   const fetchUserProfileMetadata = async (userId, userEmail) => {
-    // ⚡ MASTER OVERRIDE KEY: Force admin parameters if logged in as root admin email
     if (userEmail?.toLowerCase() === 'donchike21@gmail.com') {
       return {
         role: 'admin',
@@ -32,20 +38,18 @@ export const AuthProvider = ({ children }) => {
         .maybeSingle(); 
 
       if (!error && data) {
-        // ⚡ TYPE SANITIZATION: Cast the enum value explicitly to a clean lowercase string
         const sanitizedRole = data.role ? String(data.role).toLowerCase().trim() : 'staff';
         
         return {
           role: sanitizedRole,
           branch_id: data.branch_id || null,
-          is_active: data.is_active !== false // Defaults to true if null, strictly false if set to false
+          is_active: data.is_active !== false 
         };
       }
     } catch (err) {
       console.error("Failed to read user profile table gracefully:", err);
     }
     
-    // Safe standard fallback values if network drops or profiles are unmapped
     return { role: 'staff', branch_id: null, is_active: true };
   };
 
@@ -55,12 +59,15 @@ export const AuthProvider = ({ children }) => {
    */
   const signOut = async () => {
     setLoading(true);
+    // Clear inactivity timer immediately on intentional sign-out execution
+    if (inactivityTimeoutRef.current) clearTimeout(inactivityTimeoutRef.current);
+    
     try {
       await supabase.auth.signOut();
     } catch (err) {
       console.error("Error executing application sign out:", err);
     } finally {
-      // 🔴 CRITICAL: Total hard clear of react states and browser storage caches
+      // 🔴 TOTAL HARD CLEAR: Wipes react states and browser storage caches
       localStorage.clear();
       sessionStorage.clear();
       setUser(null);
@@ -70,24 +77,95 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // --- 🔄 INACTIVITY TIMER ENGINE ---
+  const resetInactivityTimer = () => {
+    // Drop the previous running countdown
+    if (inactivityTimeoutRef.current) clearTimeout(inactivityTimeoutRef.current);
+
+    // Only set countdown loop if an authorized user is actively logged into the terminal
+    if (user) {
+      inactivityTimeoutRef.current = setTimeout(() => {
+        console.warn("Inactivity limit breached. Triggering structural auto-logout sequence.");
+        signOut();
+        alert("🔒 Session Expired: You have been logged out due to inactivity.");
+      }, INACTIVITY_LIMIT);
+    }
+  };
+
+  // Listen for user interactions to reset the inactivity countdown clock
+  useEffect(() => {
+    const interactionEvents = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
+
+    if (user) {
+      resetInactivityTimer();
+      
+      interactionEvents.forEach(eventType => {
+        window.addEventListener(eventType, resetInactivityTimer);
+      });
+    }
+
+    return () => {
+      if (inactivityTimeoutRef.current) clearTimeout(inactivityTimeoutRef.current);
+      interactionEvents.forEach(eventType => {
+        window.removeEventListener(eventType, resetInactivityTimer);
+      });
+    };
+  }, [user]);
+
+
+  // --- 🛡️ CORE AUTH TRACKER & LIFE CYCLE ENGINE ---
   useEffect(() => {
     let isMounted = true;
 
-    // ⚡ UNIFIED AUTH ENGINE: Tracks initialization, logins, logouts, and token refreshes cleanly
+    // ⚡ FIXED LOADING LOOP: Explicitly check for an active recovery session right at startup
+    const checkInitialSession = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error || !session) {
+          if (isMounted) {
+            setUser(null);
+            setLoading(false); // Explicitly kill the loading freeze if the session is dead
+          }
+          return;
+        }
+        
+        if (session?.user && isMounted) {
+          const meta = await fetchUserProfileMetadata(session.user.id, session.user.email);
+          if (isMounted) {
+            if (meta.is_active === false) {
+              await signOut();
+            } else {
+              setUser(session.user);
+              setProfile(meta);
+              setSelectedBranch(meta.branch_id || null);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Initial session clearance crash:", err);
+      } finally {
+        if (isMounted) setLoading(false); // Safety gate guarantee
+      }
+    };
+
+    checkInitialSession();
+
+    // Unified Auth event listener handling changes, token refreshes, and drops
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!isMounted) return;
       
-      // Turn the loading state back on during transitions to prevent data race condition flickers
-      setLoading(true);
+      // Only flicker loading for valid logins/transitions to prevent stuck loops during background token checks
+      if (event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY') {
+        setLoading(true);
+      }
 
       try {
         if (session?.user) {
-          // Fetch backend profile data exactly once per session change, tracking root email signature
           const meta = await fetchUserProfileMetadata(session.user.id, session.user.email);
           
           if (isMounted) {
-            // 🛡️ MANAGER & STAFF ACCESS LOCKOUT GUARD: Instantly evict suspended users
             if (meta.is_active === false) {
+              // Instantly evict suspended users
               await supabase.auth.signOut();
               localStorage.clear();
               sessionStorage.clear();
@@ -95,12 +173,9 @@ export const AuthProvider = ({ children }) => {
               setProfile({ role: null, branch_id: null, is_active: true });
               setSelectedBranch(null);
             } else {
-              // Safe data assignment for authorized staff, manager, or admin accounts
               setUser(session.user);
               setProfile(meta);
               
-              // 🔄 STATE PRESERVATION RULE: Using functional state tracking safely avoids 
-              // closing over old variable instances while running inside a single mount instance.
               setSelectedBranch(prevBranch => {
                 if (event === 'SIGNED_IN' || prevBranch === null) {
                   return meta.branch_id || null;
@@ -110,7 +185,7 @@ export const AuthProvider = ({ children }) => {
             }
           }
         } else {
-          // 🔴 Clean state wipe and storage purge on sign out or expired session tokens
+          // Clean state wipe if session dropped completely or token expired while user was away
           if (isMounted) {
             localStorage.clear();
             sessionStorage.clear();
@@ -122,7 +197,6 @@ export const AuthProvider = ({ children }) => {
       } catch (err) {
         console.error("Auth System Event Synchronization Error:", err);
       } finally {
-        // Drop the loading gate only after all auth data has been perfectly resolved
         if (isMounted) setLoading(false);
       }
     });
@@ -131,20 +205,19 @@ export const AuthProvider = ({ children }) => {
       isMounted = false;
       if (subscription) subscription.unsubscribe();
     };
-  }, []); // ✅ Clean empty array ensures listeners mount exactly once, removing auth flicker conditions
+  }, []); 
 
-  // 🚀 PERFORMANCE MEMOIZATION: Prevents app-wide component tree re-rendering cycles
   const contextValue = useMemo(() => ({
     user, 
     role: profile.role, 
-    branchId: profile.branch_id,   // Casing format for newer module files
-    branch_id: profile.branch_id,  // Fallback for dashboard clearance sub-components
+    branchId: profile.branch_id,   
+    branch_id: profile.branch_id,  
     isActive: profile.is_active, 
-    selectedBranch,               // EXPOSED SECURELY TO THE ROUTER SWITCHER
-    setSelectedBranch,            // Exposed function so Admin can switch active counters
+    selectedBranch,               
+    setSelectedBranch,            
     authenticated: !!user,
-    loading,                      // CORRECTLY EXPORTED: Prevents App.jsx layout routing page flickers
-    signOut                       // Exposed global sign-out handle
+    loading,                      
+    signOut                       
   }), [user, profile, selectedBranch, loading]);
 
   return (
