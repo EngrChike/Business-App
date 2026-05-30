@@ -6,7 +6,7 @@ const AuthContext = createContext(null);
 
 // ⏱️ CONFIGURATION: Set the maximum inactivity time limit here
 // 10 * 60 * 1000 = 10 Minutes (Change the 10 to any number of minutes you want)
-const INACTIVITY_LIMIT = 30 * 1000; 
+const INACTIVITY_LIMIT = 5 * 60 * 1000; 
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
