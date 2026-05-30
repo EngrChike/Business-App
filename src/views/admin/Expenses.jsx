@@ -39,7 +39,6 @@ export default function Expenses({ onBack, branchId: dashboardBranchId, userRole
         .select('*')
         .gte('created_at', shiftBoundary.toISOString());
 
-      // HQ entries are identified by a NULL branch_id in the database
       if (!branchId || branchId === 'HEADQUARTERS') {
         query = query.is('branch_id', null);
       } else {
@@ -63,7 +62,6 @@ export default function Expenses({ onBack, branchId: dashboardBranchId, userRole
         const userRoleResolved = dashboardUserRole || authRole || 'manager';
         setEffectiveRole(userRoleResolved);
 
-        // ADMIN FLOW: Unlock full dropdown matrix
         if (userRoleResolved === 'admin') {
           const { data: branchData } = await supabase.from('branches').select('id, name');
           setBranches(branchData || []);
@@ -72,8 +70,6 @@ export default function Expenses({ onBack, branchId: dashboardBranchId, userRole
           setSelectedBranchId(initialAdminBranch);
           await fetchExpenses(initialAdminBranch);
         } 
-        
-        // MANAGER / STAFF FLOW: Lock boundaries down to assigned context safely
         else {
           const resolvedBranch = dashboardBranchId || selectedBranch;
           if (resolvedBranch) {
@@ -104,21 +100,20 @@ export default function Expenses({ onBack, branchId: dashboardBranchId, userRole
     e.preventDefault();
     if (loading) return;
 
-    // Convert string tags or empty states safely to real DB NULL formats for General/HQ expenses
     const targetBranchPayloadId = (!selectedBranchId || selectedBranchId === 'HEADQUARTERS') ? null : selectedBranchId;
 
+    // FIX: Changed 'created_by' to 'user_id' to match standard database schemas
     const payoutPayload = {
       description: formData.description.trim(),
       amount: parseFloat(formData.amount) || 0,
       category: formData.category,
       branch_id: targetBranchPayloadId,
-      created_by: user?.id,
+      user_id: user?.id, // <-- Adjusted from created_by to user_id
       staff_email: user?.email || 'N/A'
     };
 
     setLoading(true);
 
-    // STEP A: Handle absolute hard offline status first
     if (!navigator.onLine) {
       try {
         await saveExpenseOffline(payoutPayload);
@@ -140,18 +135,15 @@ export default function Expenses({ onBack, branchId: dashboardBranchId, userRole
       return;
     }
 
-    // STEP B: Device is online -> Push straight to database and expose any schema failures clearly
     try {
       const { error } = await supabase.from('expenses').insert([payoutPayload]);
       
       if (error) {
-        // This will display the EXACT database column error or RLS policy block message
         console.error("Supabase Database Rejection Details:", error);
-        alert(`❌ Database Error: ${error.message}\nDetails: ${error.details || 'Check column layout rules'}`);
+        alert(`❌ Database Error: ${error.message}\nDetails: ${error.details || 'Verify column alignment.'}`);
         return;
       }
 
-      // Success path clear
       setFormData({ description: '', amount: '', category: 'Logistics' });
       await fetchExpenses(selectedBranchId);
       
