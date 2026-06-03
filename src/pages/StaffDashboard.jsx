@@ -4,7 +4,6 @@ import { useLanguage } from '../context/LanguageContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx'; // Added to listen to the user's assigned branch identity
 import { supabase } from '../api/supabaseClient';
 import Sales from '../views/staff/Sales.jsx'; 
-import DebtorBox from '../views/admin/Debtors.jsx'; 
 
 export default function StaffDashboard() {
   const { language, toggleLanguage, t } = useLanguage(); 
@@ -60,11 +59,6 @@ export default function StaffDashboard() {
   if (view === 'sales') {
     // Passes the branchId constraint down to Sales so transactions are logged to the correct branch counter
     return <Sales branchId={branchId} onBack={() => setView('menu')} />;
-  }
-  
-  if (view === 'debtors') {
-    // SECURITY RULE: Pass readOnly flag so staff can view but CANNOT modify or update payments
-    return <DebtorBox readOnly={true} branchId={branchId} onBack={() => setView('menu')} />;
   }
 
   return (
@@ -148,19 +142,6 @@ export default function StaffDashboard() {
               <p className="text-slate-400 text-[11px] font-medium uppercase tracking-wider mt-0.5">{t('register_counters')}</p>
             </div>
             <span className="text-2xl bg-indigo-50 p-3 rounded-2xl group-hover:scale-110 transition-transform shadow-sm">🛒</span>
-          </button>
-
-          {/* Debtors Button */}
-          <button 
-            type="button"
-            onClick={() => setView('debtors')} 
-            className="w-full bg-white border border-slate-100 p-6 rounded-[28px] shadow-sm text-left flex justify-between items-center group transition-all hover:scale-[1.01] active:scale-98"
-          >
-            <div>
-              <h2 className="text-lg font-extrabold tracking-tight text-slate-900">{t('debtor_ledger')}</h2>
-              <p className="text-slate-400 text-[11px] font-medium uppercase tracking-wider mt-0.5">View Unpaid Customer Tabs</p>
-            </div>
-            <span className="text-2xl bg-amber-50 p-3 rounded-2xl group-hover:scale-110 transition-transform shadow-sm">📝</span>
           </button>
         </div>
 
