@@ -1,3 +1,4 @@
+// src/views/admin/BulkStock.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { useLanguage } from '../../context/LanguageContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
@@ -31,11 +32,13 @@ export default function BulkStock({ onBack, refreshMetrics }) {
 
   const currentUserName = user?.user_metadata?.full_name || user?.email || 'System User';
   const isAdmin = userRole === 'admin';
+  const isManager = userRole === 'manager';
 
   // --- Fetch System Context & Database Ledgers ---
   const fetchBulkData = useCallback(async () => {
     try {
       setLoading(true);
+      let activeRole = 'manager';
       
       // Resolve User Role directly from profiles
       if (user?.id) {
@@ -46,6 +49,7 @@ export default function BulkStock({ onBack, refreshMetrics }) {
           .single();
         if (profile?.role) {
           setUserRole(profile.role);
+          activeRole = profile.role;
         }
       }
 
@@ -63,13 +67,15 @@ export default function BulkStock({ onBack, refreshMetrics }) {
         }
       }
 
-      // Admins get to view the Manager Audit Logs Trail
-      if (userRole === 'admin' || (user?.id && !isAdmin)) {
-        const { data: logs } = await supabase
+      // Managers and Admins both get authorization to read the audit trail logs
+      if (activeRole === 'admin' || activeRole === 'manager') {
+        const { data: logs, error: logFetchError } = await supabase
           .from('bulk_inventory_logs')
           .select('*')
           .order('created_at', { ascending: false })
           .limit(40);
+        
+        if (logFetchError) throw logFetchError;
         if (logs) setAuditLogs(logs);
       }
 
@@ -79,7 +85,7 @@ export default function BulkStock({ onBack, refreshMetrics }) {
       setLoading(false);
       setCheckingRole(false);
     }
-  }, [user, userRole, isAdmin, selectedBranch]);
+  }, [user?.id, selectedBranch]); // Stabilized dependencies array to prevent infinite rendering cycles
 
   useEffect(() => {
     fetchBulkData();
@@ -113,7 +119,7 @@ export default function BulkStock({ onBack, refreshMetrics }) {
       if (error) throw error;
 
       // Log Initial Batch Creation to Audit Trail
-      await supabase.from('bulk_inventory_logs').insert([
+      const { error: logError } = await supabase.from('bulk_inventory_logs').insert([
         {
           bulk_id: data?.id,
           item_name: name.trim(),
@@ -125,6 +131,8 @@ export default function BulkStock({ onBack, refreshMetrics }) {
           performed_by_name: currentUserName
         }
       ]);
+
+      if (logError) throw logError;
 
       setName('');
       setPackageQty('');
@@ -157,7 +165,7 @@ export default function BulkStock({ onBack, refreshMetrics }) {
 
       if (error) throw error;
 
-      await supabase.from('bulk_inventory_logs').insert([
+      const { error: logError } = await supabase.from('bulk_inventory_logs').insert([
         {
           bulk_id: selectedBatch.id,
           item_name: selectedBatch.name,
@@ -169,6 +177,8 @@ export default function BulkStock({ onBack, refreshMetrics }) {
           performed_by_name: currentUserName
         }
       ]);
+
+      if (logError) throw logError;
 
       closeOperationalModals();
       await fetchBulkData();
@@ -193,7 +203,7 @@ export default function BulkStock({ onBack, refreshMetrics }) {
 
       if (error) throw error;
 
-      await supabase.from('bulk_inventory_logs').insert([
+      const { error: logError } = await supabase.from('bulk_inventory_logs').insert([
         {
           bulk_id: selectedBatch.id,
           item_name: modalNameInput.trim(),
@@ -205,6 +215,8 @@ export default function BulkStock({ onBack, refreshMetrics }) {
           performed_by_name: currentUserName
         }
       ]);
+
+      if (logError) throw logError;
 
       closeOperationalModals();
       await fetchBulkData();
@@ -228,7 +240,7 @@ export default function BulkStock({ onBack, refreshMetrics }) {
 
       if (error) throw error;
 
-      await supabase.from('bulk_inventory_logs').insert([
+      const { error: logError } = await supabase.from('bulk_inventory_logs').insert([
         {
           bulk_id: batch.id,
           item_name: batch.name,
@@ -240,6 +252,8 @@ export default function BulkStock({ onBack, refreshMetrics }) {
           performed_by_name: currentUserName
         }
       ]);
+
+      if (logError) throw logError;
 
       await fetchBulkData();
       if (typeof refreshMetrics === 'function') refreshMetrics();
@@ -271,7 +285,7 @@ export default function BulkStock({ onBack, refreshMetrics }) {
       if (error) throw error;
 
       // Append Audit Entry tracking what the manager/admin removed
-      await supabase.from('bulk_inventory_logs').insert([
+      const { error: logError } = await supabase.from('bulk_inventory_logs').insert([
         {
           bulk_id: selectedBatch.id,
           item_name: selectedBatch.name,
@@ -284,12 +298,14 @@ export default function BulkStock({ onBack, refreshMetrics }) {
         }
       ]);
 
+      if (logError) throw logError; // Caught and resolved runtime validation failures
+
       closeOperationalModals();
       await fetchBulkData();
       if (typeof refreshMetrics === 'function') refreshMetrics();
       alert("Removal action successfully logged to the audit tracking table.");
     } catch (err) {
-      alert(err.message);
+      alert("Database Logging Error: " + err.message);
     } finally {
       setLoading(false);
     }
@@ -326,7 +342,7 @@ export default function BulkStock({ onBack, refreshMetrics }) {
         
         {/* BACK ACTION & HEADER */}
         <button onClick={onBack} className="text-[#3F51B5] font-bold text-xs tracking-wider uppercase mb-2 block hover:opacity-80 transition-opacity">
-          ← {t('back') || 'Back'}
+          &larr; {t('back') || 'Back'}
         </button>
         <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
@@ -337,8 +353,8 @@ export default function BulkStock({ onBack, refreshMetrics }) {
           </div>
         </div>
 
-        {/* SECURE LAYOUT GRID */}
-        <div className={`grid grid-cols-1 ${isAdmin ? 'lg:grid-cols-4' : 'grid-cols-1'} gap-6`}>
+        {/* SECURE LAYOUT GRID - Expanded automatically to 4 columns when logs are visible */}
+        <div className={`grid grid-cols-1 ${(isAdmin || isManager) ? 'lg:grid-cols-4' : 'grid-cols-1'} gap-6`}>
           
           {/* LOGGING ENTRY FORM (Rendered strictly for Admin roles) */}
           {isAdmin && (
@@ -392,8 +408,8 @@ export default function BulkStock({ onBack, refreshMetrics }) {
             </div>
           )}
 
-          {/* STOCK MONITORING LEDGER LIST */}
-          <div className={`bg-white rounded-[28px] border border-slate-100 shadow-sm overflow-hidden ${isAdmin ? 'lg:col-span-2' : 'col-span-1'}`}>
+          {/* STOCK MONITORING LEDGER LIST - Auto dimensions matching role view columns footprint */}
+          <div className={`bg-white rounded-[28px] border border-slate-100 shadow-sm overflow-hidden ${isAdmin ? 'lg:col-span-2' : 'lg:col-span-3'}`}>
             <div className="p-5 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
               <h2 className="font-extrabold text-xs text-slate-400 uppercase tracking-wider">Active Bulk Vault Balance Registers</h2>
               <div className="bg-[#3F51B5] text-white px-2.5 py-0.5 rounded-full text-[10px] font-extrabold">{batches.length}</div>
@@ -408,7 +424,7 @@ export default function BulkStock({ onBack, refreshMetrics }) {
                     <div className="flex-1">
                       <h4 className="font-bold text-sm text-slate-800">{batch.name}</h4>
                       <p className="text-[10px] font-medium text-slate-400 mt-0.5 uppercase tracking-wide">
-                        📦 Lot Config: {batch.package_quantity} {batch.package_type}(s) × {batch.units_per_package} items
+                        📦 Lot Config: {batch.package_quantity} {batch.package_type}(s) &times; {batch.units_per_package} items
                       </p>
                       <p className="text-[9px] font-black text-indigo-600 uppercase mt-1">
                         Total Volume: {batch.total_unit_count?.toLocaleString() || (batch.package_quantity * batch.units_per_package).toLocaleString()} Units Available
@@ -462,8 +478,8 @@ export default function BulkStock({ onBack, refreshMetrics }) {
             </div>
           </div>
 
-          {/* REAL-TIME AUDIT TRACKING TIMELINE PANEL (Visible strictly to Admin view dashboards) */}
-          {isAdmin && (
+          {/* REAL-TIME AUDIT TRACKING TIMELINE PANEL - Authorized for both Admin and Manager dashboard views */}
+          {(isAdmin || isManager) && (
             <div className="bg-white rounded-[28px] border border-slate-100 shadow-sm p-5 lg:col-span-1 h-fit max-h-[640px] flex flex-col">
               <div className="pb-3 border-b border-slate-50 mb-3 flex items-center justify-between">
                 <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Manager Activity Trail Logs</h3>
