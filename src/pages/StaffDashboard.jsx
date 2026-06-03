@@ -4,7 +4,7 @@ import { useLanguage } from '../context/LanguageContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx'; // Added to listen to the user's assigned branch identity
 import { supabase } from '../api/supabaseClient';
 import Sales from '../views/staff/Sales.jsx'; 
-import DebtorBox from '../views/admin/BulkStock.jsx'; 
+import DebtorBox from '../views/admin/Debtors.jsx'; 
 
 export default function StaffDashboard() {
   const { language, toggleLanguage, t } = useLanguage(); 

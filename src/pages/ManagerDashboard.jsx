@@ -7,6 +7,7 @@ import { supabase } from '../api/supabaseClient';
 import Sales from '../views/staff/Sales';
 import Inventory from '../views/admin/Inventory';
 import Expenses from '../views/admin/Expenses';
+import BulkStock from '../views/admin/BulkStock'; // Linked Bulk Stock Vault view
 
 export default function ManagerDashboard() {
   const { user, signOut, branchId, role } = useAuth();
@@ -113,7 +114,7 @@ export default function ManagerDashboard() {
     );
   }
 
-  // ROUTING MATRICES - Injection points optimized to link seamlessly with Expenses.jsx
+  // --- APPLICATION INTERFACE VIEWS ROUTING ---
   if (currentView === 'sales') {
     return <Sales onBack={() => setCurrentView('home')} branchId={branchId} refreshMetrics={triggerMetricsRefresh} />;
   }
@@ -122,6 +123,9 @@ export default function ManagerDashboard() {
   }
   if (currentView === 'expenses') {
     return <Expenses onBack={() => setCurrentView('home')} branchId={branchId} userRole={role} refreshMetrics={triggerMetricsRefresh} />;
+  }
+  if (currentView === 'bulk_stock') {
+    return <BulkStock onBack={() => setCurrentView('home')} refreshMetrics={triggerMetricsRefresh} />;
   }
 
   const netBalance = metrics.revenue - metrics.expenses;
@@ -133,7 +137,7 @@ export default function ManagerDashboard() {
         {/* EXECUTIVE HUB HEADER */}
         <div className="flex justify-between items-center mb-8 mt-2">
           <div>
-            <h1 className="text-2xl font-black tracking-tight text-slate-900 uppercase italic">Don Chike Executive Control</h1>
+            <h1 className="text-2xl font-black tracking-tight text-slate-900 uppercase italic">Executive Dashboard Control</h1>
             <span className="text-[10px] font-black uppercase text-indigo-600 bg-indigo-50 px-3 py-1 rounded-md tracking-wider inline-block mt-1">
               📍 Operational Counter: {branchName}
             </span>
@@ -180,6 +184,16 @@ export default function ManagerDashboard() {
         {/* APPLICATION BUTTON CONSOLE */}
         <h2 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 px-1">Management Hub Applications</h2>
         <div className="grid grid-cols-1 gap-3">
+          
+          {/* BULK STORAGE VAULT ENTRY CARD */}
+          <button onClick={() => setCurrentView('bulk_stock')} className="w-full p-5 bg-white border border-slate-100 hover:border-indigo-200 rounded-[24px] shadow-sm flex justify-between items-center group transition-all border-l-4 border-l-indigo-500">
+            <div className="text-left">
+              <h3 className="font-black text-sm text-slate-800 uppercase tracking-tight group-hover:text-indigo-600 transition-colors">Bulk Supply Storage Vault</h3>
+              <p className="text-xs text-slate-400 font-medium mt-0.5">Monitor central storage balance metrics and record item packages extracted.</p>
+            </div>
+            <span className="text-xl group-hover:translate-x-1 transition-transform">🏛️</span>
+          </button>
+
           <button onClick={() => setCurrentView('sales')} className="w-full p-5 bg-white border border-slate-100 hover:border-indigo-200 rounded-[24px] shadow-sm flex justify-between items-center group transition-all">
             <div className="text-left">
               <h3 className="font-black text-sm text-slate-800 uppercase tracking-tight group-hover:text-indigo-600 transition-colors">Sales Processing Terminal</h3>
@@ -203,6 +217,7 @@ export default function ManagerDashboard() {
             </div>
             <span className="text-xl group-hover:translate-x-1 transition-transform">🛑</span>
           </button>
+          
         </div>
 
       </div>

@@ -1,354 +1,500 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../../api/supabaseClient';
-import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext.jsx';
+import { useAuth } from '../../context/AuthContext.jsx';
+import { supabase } from '../../api/supabaseClient.js';
 
-export default function BulkInventory({ userRole }) {
+export default function BulkStock({ onBack, refreshMetrics }) {
+  const { t } = useLanguage();
   const { user } = useAuth();
-  const isAdmin = userRole === 'admin';
-
-  // Core State
-  const [bulkItems, setBulkItems] = useState([]);
+  
+  // Role & Master Data State
+  const [userRole, setUserRole] = useState('manager'); // Safe fallback
+  const [batches, setBatches] = useState([]);
+  const [branches, setBranches] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [checkingRole, setCheckingRole] = useState(true);
 
-  // Modal / Form States
+  // Form Fields (Incoming Shipments - Admin Only)
+  const [name, setName] = useState('');
+  const [packageType, setPackageType] = useState('Carton');
+  const [packageQty, setPackageQty] = useState('');
+  const [unitsPerPkg, setUnitsPerPkg] = useState('');
+  const [costPricePerPkg, setCostPricePerPkg] = useState('');
+  const [selectedBranch, setSelectedBranch] = useState('');
+
+  // Modals Configuration State
   const [activeModal, setActiveModal] = useState(null); // 'refill' | 'edit' | 'take'
-  const [selectedItem, setSelectedItem] = useState(null);
-  
-  // Form Inputs
-  const [itemName, setItemName] = useState('');
-  const [quantityInput, setQuantityInput] = useState(0);
+  const [selectedBatch, setSelectedBatch] = useState(null);
+  const [modalQuantityInput, setModalQuantityInput] = useState('');
+  const [modalNameInput, setModalNameInput] = useState('');
 
-  const currentUserName = user?.user_metadata?.full_name || user?.email || 'Unknown User';
+  const currentUserName = user?.user_metadata?.full_name || user?.email || 'System User';
+  const isAdmin = userRole === 'admin';
 
-  // --- Data Fetching ---
+  // --- Fetch System Context & Database Ledgers ---
   const fetchBulkData = useCallback(async () => {
-    setLoading(true);
     try {
-      const { data: inventory, error: invError } = await supabase
-        .from('bulk_inventory')
-        .select('*')
-        .order('item_name', { ascending: true });
+      setLoading(true);
+      
+      // Resolve User Role directly from profiles
+      if (user?.id) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+        if (profile?.role) {
+          setUserRole(profile.role);
+        }
+      }
 
-      if (invError) throw invError;
-      setBulkItems(inventory || []);
+      // Fetch registries based on authorization rules
+      const [bulkRes, branchRes] = await Promise.all([
+        supabase.from('bulk_inventory').select('*').order('created_at', { ascending: false }),
+        supabase.from('branches').select('*').order('name', { ascending: true })
+      ]);
 
-      if (isAdmin) {
-        const { data: logs, error: logsError } = await supabase
+      if (bulkRes.data) setBatches(bulkRes.data);
+      if (branchRes.data) {
+        setBranches(branchRes.data);
+        if (branchRes.data.length > 0 && !selectedBranch) {
+          setSelectedBranch(branchRes.data[0].id);
+        }
+      }
+
+      // Admins get to view the Manager Audit Logs Trail
+      if (userRole === 'admin' || (user?.id && !isAdmin)) {
+        const { data: logs } = await supabase
           .from('bulk_inventory_logs')
           .select('*')
           .order('created_at', { ascending: false })
-          .limit(50);
-        
-        if (logsError) throw logsError;
-        setAuditLogs(logs || []);
+          .limit(40);
+        if (logs) setAuditLogs(logs);
       }
+
     } catch (err) {
-      console.error('Error fetching bulk inventory data:', err.message);
+      console.error("Bulk Ledger Sync Error:", err.message);
     } finally {
       setLoading(false);
+      setCheckingRole(false);
     }
-  }, [isAdmin]);
+  }, [user, userRole, isAdmin, selectedBranch]);
 
   useEffect(() => {
     fetchBulkData();
   }, [fetchBulkData]);
 
-  // --- Core CRUD Actions ---
-  
-  // 1. CREATE NEW ITEM (Admin Only)
-  const handleAddNewItem = async (e) => {
+  // --- 1. INITIAL BULK ENTRY CREATION (Admin Only) ---
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!itemName.trim() || quantityInput < 0) return;
+    if (!name || !packageQty || !unitsPerPkg || !costPricePerPkg || !selectedBranch || loading) {
+      return alert("Please fill out all operational fields cleanly.");
+    }
 
+    setLoading(true);
     try {
       const { data, error } = await supabase
         .from('bulk_inventory')
-        .insert([{ item_name: itemName.trim(), total_quantity: quantityInput }])
+        .insert([
+          {
+            name: name.trim(),
+            package_type: packageType,
+            package_quantity: parseInt(packageQty),
+            units_per_package: parseInt(unitsPerPkg),
+            cost_price_per_pkg: parseFloat(costPricePerPkg),
+            branch_id: selectedBranch,
+            created_by: user?.id
+          }
+        ])
         .select()
         .single();
 
       if (error) throw error;
 
-      await supabase.from('bulk_inventory_logs').insert([{
-        item_id: data.id,
-        item_name: data.item_name,
-        action_type: 'INITIAL_CREATE',
-        quantity_changed: data.total_quantity,
-        performed_by_id: user.id,
-        performed_by_name: currentUserName
-      }]);
+      // Log Initial Batch Creation to Audit Trail
+      await supabase.from('bulk_inventory_logs').insert([
+        {
+          bulk_id: data?.id,
+          item_name: name.trim(),
+          action_type: 'INITIAL_CREATE',
+          package_qty_changed: parseInt(packageQty),
+          old_value: '0 Packages',
+          new_value: `${packageQty} ${packageType}s`,
+          performed_by_id: user?.id,
+          performed_by_name: currentUserName
+        }
+      ]);
 
-      closeModals();
-      fetchBulkData();
+      setName('');
+      setPackageQty('');
+      setUnitsPerPkg('');
+      setCostPricePerPkg('');
+      
+      await fetchBulkData();
+      if (typeof refreshMetrics === 'function') refreshMetrics();
+      alert("Bulk stock entry committed to system ledger successfully!");
     } catch (err) {
-      alert(err.message);
+      alert("Committed error: " + err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // 2. REFILL STOCK (Admin Only)
-  const handleRefill = async () => {
-    if (quantityInput <= 0) return alert('Enter a valid quantity to increase stock.');
-    const newQty = selectedItem.total_quantity + parseInt(quantityInput);
+  // --- 2. REFILL PACKAGES OPERATION (Admin Only) ---
+  const handleRefillStock = async () => {
+    if (!modalQuantityInput || parseInt(modalQuantityInput) <= 0) return alert('Enter a valid quantity increment.');
+    setLoading(true);
+
+    const addedQty = parseInt(modalQuantityInput);
+    const updatedTotalPackages = selectedBatch.package_quantity + addedQty;
 
     try {
       const { error } = await supabase
         .from('bulk_inventory')
-        .update({ total_quantity: newQty, updated_at: new Date().toISOString() })
-        .eq('id', selectedItem.id);
+        .update({ package_quantity: updatedTotalPackages })
+        .eq('id', selectedBatch.id);
 
       if (error) throw error;
 
-      await supabase.from('bulk_inventory_logs').insert([{
-        item_id: selectedItem.id,
-        item_name: selectedItem.item_name,
-        action_type: 'REFILL',
-        quantity_changed: parseInt(quantityInput),
-        old_value: `${selectedItem.total_quantity}`,
-        new_value: `${newQty}`,
-        performed_by_id: user.id,
-        performed_by_name: currentUserName
-      }]);
+      await supabase.from('bulk_inventory_logs').insert([
+        {
+          bulk_id: selectedBatch.id,
+          item_name: selectedBatch.name,
+          action_type: 'REFILL',
+          package_qty_changed: addedQty,
+          old_value: `${selectedBatch.package_quantity} Pkgs`,
+          new_value: `${updatedTotalPackages} Pkgs`,
+          performed_by_id: user?.id,
+          performed_by_name: currentUserName
+        }
+      ]);
 
-      closeModals();
-      fetchBulkData();
+      closeOperationalModals();
+      await fetchBulkData();
+      if (typeof refreshMetrics === 'function') refreshMetrics();
     } catch (err) {
       alert(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // 3. EDIT RECORD (Admin Only)
-  const handleEdit = async () => {
-    if (!itemName.trim()) return;
+  // --- 3. EDIT SYSTEM CONTEXT RECORD (Admin Only) ---
+  const handleEditRecord = async () => {
+    if (!modalNameInput.trim()) return alert('Item title cannot be left blank.');
+    setLoading(true);
 
     try {
       const { error } = await supabase
         .from('bulk_inventory')
-        .update({ item_name: itemName.trim(), updated_at: new Date().toISOString() })
-        .eq('id', selectedItem.id);
+        .update({ name: modalNameInput.trim() })
+        .eq('id', selectedBatch.id);
 
       if (error) throw error;
 
-      await supabase.from('bulk_inventory_logs').insert([{
-        item_id: selectedItem.id,
-        item_name: itemName.trim(),
-        action_type: 'EDIT',
-        quantity_changed: 0,
-        old_value: selectedItem.item_name,
-        new_value: itemName.trim(),
-        performed_by_id: user.id,
-        performed_by_name: currentUserName
-      }]);
+      await supabase.from('bulk_inventory_logs').insert([
+        {
+          bulk_id: selectedBatch.id,
+          item_name: modalNameInput.trim(),
+          action_type: 'EDIT',
+          package_qty_changed: 0,
+          old_value: selectedBatch.name,
+          new_value: modalNameInput.trim(),
+          performed_by_id: user?.id,
+          performed_by_name: currentUserName
+        }
+      ]);
 
-      closeModals();
-      fetchBulkData();
+      closeOperationalModals();
+      await fetchBulkData();
     } catch (err) {
       alert(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // 4. DELETE RECORD (Admin Only)
-  const handleDelete = async (item) => {
-    if (!window.confirm(`Are you absolutely sure you want to delete "${item.item_name}" entirely from bulk storage?`)) return;
-
-    try {
-      const { error } = await supabase.from('bulk_inventory').delete().eq('id', item.id);
-      if (error) throw error;
-
-      await supabase.from('bulk_inventory_logs').insert([{
-        item_id: item.id,
-        item_name: item.item_name,
-        action_type: 'DELETE',
-        quantity_changed: -item.total_quantity,
-        old_value: `Qty: ${item.total_quantity}`,
-        new_value: 'DELETED',
-        performed_by_id: user.id,
-        performed_by_name: currentUserName
-      }]);
-
-      fetchBulkData();
-    } catch (err) {
-      alert(err.message);
-    }
-  };
-
-  // 5. RECORD ITEM TAKEN (Available to Both Admin & Manager)
-  const handleTakeItems = async () => {
-    if (quantityInput <= 0) return alert('Enter a valid quantity taken.');
-    if (quantityInput > selectedItem.total_quantity) return alert('Insufficient stock in bulk vault!');
-
-    const newQty = selectedItem.total_quantity - parseInt(quantityInput);
+  // --- 4. DELETE ENTIRE RECORD (Admin Only) ---
+  const handleDeleteRecord = async (batch) => {
+    if (!window.confirm(`Are you sure you want to delete "${batch.name}" entirely from bulk registers? This cannot be undone.`)) return;
+    setLoading(true);
 
     try {
       const { error } = await supabase
         .from('bulk_inventory')
-        .update({ total_quantity: newQty, updated_at: new Date().toISOString() })
-        .eq('id', selectedItem.id);
+        .delete()
+        .eq('id', batch.id);
 
       if (error) throw error;
 
-      await supabase.from('bulk_inventory_logs').insert([{
-        item_id: selectedItem.id,
-        item_name: selectedItem.item_name,
-        action_type: 'TAKEN',
-        quantity_changed: -parseInt(quantityInput),
-        old_value: `${selectedItem.total_quantity}`,
-        new_value: `${newQty}`,
-        performed_by_id: user.id,
-        performed_by_name: currentUserName
-      }]);
+      await supabase.from('bulk_inventory_logs').insert([
+        {
+          bulk_id: batch.id,
+          item_name: batch.name,
+          action_type: 'DELETE',
+          package_qty_changed: -batch.package_quantity,
+          old_value: `Existed with ${batch.package_quantity} Pkgs`,
+          new_value: 'DELETED',
+          performed_by_id: user?.id,
+          performed_by_name: currentUserName
+        }
+      ]);
 
-      closeModals();
-      fetchBulkData();
+      await fetchBulkData();
+      if (typeof refreshMetrics === 'function') refreshMetrics();
     } catch (err) {
       alert(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const openModal = (type, item) => {
+  // --- 5. RECORD ITEM PACKAGES TAKEN (Admin & Manager Access) ---
+  const handleTakePackages = async () => {
+    if (!modalQuantityInput || parseInt(modalQuantityInput) <= 0) return alert('Enter a valid package amount extracted.');
+    const countTaken = parseInt(modalQuantityInput);
+
+    if (countTaken > selectedBatch.package_quantity) {
+      return alert(`Insufficient stock balance! You can take a maximum of ${selectedBatch.package_quantity} packages.`);
+    }
+
+    setLoading(true);
+    const remainingQty = selectedBatch.package_quantity - countTaken;
+
+    try {
+      const { error } = await supabase
+        .from('bulk_inventory')
+        .update({ package_quantity: remainingQty })
+        .eq('id', selectedBatch.id);
+
+      if (error) throw error;
+
+      // Append Audit Entry tracking what the manager/admin removed
+      await supabase.from('bulk_inventory_logs').insert([
+        {
+          bulk_id: selectedBatch.id,
+          item_name: selectedBatch.name,
+          action_type: 'TAKEN',
+          package_qty_changed: -countTaken,
+          old_value: `${selectedBatch.package_quantity} Pkgs`,
+          new_value: `${remainingQty} Pkgs`,
+          performed_by_id: user?.id,
+          performed_by_name: currentUserName
+        }
+      ]);
+
+      closeOperationalModals();
+      await fetchBulkData();
+      if (typeof refreshMetrics === 'function') refreshMetrics();
+      alert("Removal action successfully logged to the audit tracking table.");
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // --- Modal Helpers ---
+  const triggerModal = (type, batch) => {
     setActiveModal(type);
-    setSelectedItem(item);
-    if (item) {
-      setItemName(item.item_name);
-      setQuantityInput(0);
-    } else {
-      setItemName('');
-      setQuantityInput(0);
-    }
+    setSelectedBatch(batch);
+    setModalQuantityInput('');
+    setModalNameInput(batch ? batch.name : '');
   };
 
-  const closeModals = () => {
+  const closeOperationalModals = () => {
     setActiveModal(null);
-    setSelectedItem(null);
-    setItemName('');
-    setQuantityInput(0);
+    setSelectedBatch(null);
+    setModalQuantityInput('');
+    setModalNameInput('');
   };
+
+  if (checkingRole) {
+    return (
+      <div className="min-h-screen bg-[#F4F3ED] flex items-center justify-center font-sans">
+        <div className="text-center font-bold text-slate-500 animate-pulse text-xs uppercase tracking-widest">
+          Verifying Bulk Stock Access Level...
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="p-4 md:p-8 bg-[#F4F3ED] min-h-screen text-slate-800 font-sans">
+    <div className="min-h-screen bg-[#F4F3ED] text-[#111111] p-4 md:p-8 font-sans antialiased pb-24">
       <div className="max-w-6xl mx-auto">
         
-        {/* Header Block */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+        {/* BACK ACTION & HEADER */}
+        <button onClick={onBack} className="text-[#3F51B5] font-bold text-xs tracking-wider uppercase mb-2 block hover:opacity-80 transition-opacity">
+          ← {t('back') || 'Back'}
+        </button>
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
-            <h1 className="text-2xl font-black tracking-tight text-slate-900 uppercase">Bulk Vault Inventory</h1>
-            <p className="text-xs text-slate-400 font-medium mt-1">
-              Current Access Authorization: <span className="text-indigo-600 font-black uppercase">{userRole}</span>
+            <h1 className="text-xl font-black tracking-tight text-slate-900">Bulk Stock Supply Management</h1>
+            <p className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400 mt-0.5">
+              Secure Environment: <span className="text-[#3F51B5]">{userRole} view</span>
             </p>
           </div>
-          {isAdmin && (
-            <button 
-              onClick={() => openModal('create', null)} 
-              className="bg-slate-900 text-white text-xs font-bold uppercase tracking-wider px-5 py-3 rounded-xl shadow-sm active:scale-95 transition-all"
-            >
-              + Add New Bulk Stock Reference
-            </button>
-          )}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* SECURE LAYOUT GRID */}
+        <div className={`grid grid-cols-1 ${isAdmin ? 'lg:grid-cols-4' : 'grid-cols-1'} gap-6`}>
           
-          {/* Main Stock Registry List */}
-          <div className="lg:col-span-2 bg-white rounded-[28px] border border-slate-100 shadow-sm p-6">
-            <h2 className="text-xs font-black uppercase text-slate-400 tracking-wider mb-4">Stock Ledger Control Matrix</h2>
-            
-            {loading ? (
-              <p className="text-xs font-bold text-slate-400 animate-pulse uppercase">Syncing Central Matrix Vault...</p>
-            ) : bulkItems.length === 0 ? (
-              <p className="text-xs italic text-slate-400">Vault registry is completely empty.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-100">
-                      <th className="py-3 text-[10px] font-black uppercase text-slate-400 tracking-wider">Item Name</th>
-                      <th className="py-3 text-[10px] font-black uppercase text-slate-400 tracking-wider text-center">Total Balance</th>
-                      <th className="py-3 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right">Operations Allowed</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {bulkItems.map((item) => (
-                      <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="py-4 font-bold text-sm text-slate-800">{item.item_name}</td>
-                        <td className="py-4 text-center">
-                          <span className="font-black px-3 py-1 bg-slate-100 rounded-lg text-xs text-slate-700">
-                            {item.total_quantity.toLocaleString()} units
-                          </span>
-                        </td>
-                        <td className="py-4 text-right">
-                          <div className="flex gap-1.5 justify-end">
-                            <button 
-                              onClick={() => openModal('take', item)}
-                              className="px-3 py-1.5 bg-emerald-50 text-emerald-700 font-bold text-[11px] rounded-lg uppercase tracking-wide hover:bg-emerald-100 transition-colors"
-                            >
-                              Take Item
-                            </button>
-                            
-                            {isAdmin && (
-                              <>
-                                <button 
-                                  onClick={() => openModal('refill', item)}
-                                  className="px-3 py-1.5 bg-blue-50 text-blue-700 font-bold text-[11px] rounded-lg uppercase tracking-wide hover:bg-blue-100 transition-colors"
-                                >
-                                  Refill
-                                </button>
-                                <button 
-                                  onClick={() => openModal('edit', item)}
-                                  className="px-3 py-1.5 bg-slate-100 text-slate-600 font-bold text-[11px] rounded-lg uppercase tracking-wide hover:bg-slate-200 transition-colors"
-                                >
-                                  Edit
-                                </button>
-                                <button 
-                                  onClick={() => handleDelete(item)}
-                                  className="px-3 py-1.5 bg-red-50 text-red-600 font-bold text-[11px] rounded-lg uppercase tracking-wide hover:bg-red-100 transition-colors"
-                                >
-                                  Delete
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
+          {/* LOGGING ENTRY FORM (Rendered strictly for Admin roles) */}
+          {isAdmin && (
+            <div className="bg-white p-6 rounded-[28px] shadow-sm border border-slate-100 lg:col-span-1 h-fit">
+              <h2 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-4">Log Incoming Shipment</h2>
+              <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Item Name</label>
+                  <input type="text" className="w-full p-3.5 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs outline-none text-slate-800" placeholder="e.g. Premium Lip Balm" value={name} onChange={e => setName(e.target.value)} />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Package Type</label>
+                  <select className="w-full p-3.5 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs outline-none text-slate-800 cursor-pointer" value={packageType} onChange={e => setPackageType(e.target.value)}>
+                    <option value="Carton">Carton</option>
+                    <option value="Box">Box</option>
+                    <option value="Crate">Crate</option>
+                    <option value="Pallet">Pallet</option>
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Pkg Qty</label>
+                    <input type="number" min="1" className="w-full p-3.5 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs text-center outline-none text-slate-800" placeholder="10" value={packageQty} onChange={e => setPackageQty(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Units / Pkg</label>
+                    <input type="number" min="1" className="w-full p-3.5 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs text-center outline-none text-slate-800" placeholder="24" value={unitsPerPkg} onChange={e => setUnitsPerPkg(e.target.value)} />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Cost Price per Pkg (FCFA)</label>
+                  <input type="number" className="w-full p-3.5 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs outline-none text-slate-800" placeholder="15,000" value={costPricePerPkg} onChange={e => setCostPricePerPkg(e.target.value)} />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Destination Branch</label>
+                  <select className="w-full p-3.5 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs outline-none text-slate-800 cursor-pointer" value={selectedBranch} onChange={e => setSelectedBranch(e.target.value)}>
+                    {branches.map(b => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                  </select>
+                </div>
+
+                <button type="submit" disabled={loading} className="w-full mt-2 py-3.5 bg-slate-900 text-white rounded-xl font-bold text-xs uppercase tracking-wider disabled:opacity-50 shadow-sm active:scale-98 transition-all">
+                  {loading ? "Processing Ledger..." : "Commit Bulk Stock"}
+                </button>
+              </form>
+            </div>
+          )}
+
+          {/* STOCK MONITORING LEDGER LIST */}
+          <div className={`bg-white rounded-[28px] border border-slate-100 shadow-sm overflow-hidden ${isAdmin ? 'lg:col-span-2' : 'col-span-1'}`}>
+            <div className="p-5 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
+              <h2 className="font-extrabold text-xs text-slate-400 uppercase tracking-wider">Active Bulk Vault Balance Registers</h2>
+              <div className="bg-[#3F51B5] text-white px-2.5 py-0.5 rounded-full text-[10px] font-extrabold">{batches.length}</div>
+            </div>
+
+            <div className="divide-y divide-slate-100 max-h-[580px] overflow-y-auto p-5">
+              {batches.length === 0 ? (
+                <p className="text-slate-400 text-xs italic py-8 text-center">No bulk shipments registered in the operational master yet.</p>
+              ) : (
+                batches.map((batch) => (
+                  <div key={batch.id} className="flex flex-col sm:flex-row sm:items-center justify-between py-4.5 first:pt-0 last:pb-0 gap-3">
+                    <div className="flex-1">
+                      <h4 className="font-bold text-sm text-slate-800">{batch.name}</h4>
+                      <p className="text-[10px] font-medium text-slate-400 mt-0.5 uppercase tracking-wide">
+                        📦 Lot Config: {batch.package_quantity} {batch.package_type}(s) × {batch.units_per_package} items
+                      </p>
+                      <p className="text-[9px] font-black text-indigo-600 uppercase mt-1">
+                        Total Volume: {batch.total_unit_count?.toLocaleString() || (batch.package_quantity * batch.units_per_package).toLocaleString()} Units Available
+                      </p>
+                    </div>
+
+                    <div className="flex sm:flex-col items-baseline sm:items-end justify-between sm:justify-center gap-1 min-w-[100px]">
+                      <p className="font-black text-slate-900 text-sm">
+                        {batch.total_cost_amount?.toLocaleString() || (batch.cost_price_per_pkg * batch.package_quantity).toLocaleString()} <span className="text-[10px] text-slate-400 font-bold">FCFA</span>
+                      </p>
+                      <p className="text-[9px] text-slate-400 font-medium">
+                        {new Date(batch.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+
+                    {/* Operational Actions Context Routing */}
+                    <div className="flex gap-1.5 self-end sm:self-center">
+                      <button 
+                        onClick={() => triggerModal('take', batch)}
+                        className="px-2.5 py-1.5 bg-emerald-50 text-emerald-700 font-black text-[10px] rounded-lg uppercase tracking-wider hover:bg-emerald-100 transition-colors"
+                      >
+                        Take Packages
+                      </button>
+
+                      {isAdmin && (
+                        <>
+                          <button 
+                            onClick={() => triggerModal('refill', batch)}
+                            className="px-2.5 py-1.5 bg-blue-50 text-blue-700 font-black text-[10px] rounded-lg uppercase tracking-wider hover:bg-blue-100 transition-colors"
+                          >
+                            Refill
+                          </button>
+                          <button 
+                            onClick={() => triggerModal('edit', batch)}
+                            className="px-2.5 py-1.5 bg-slate-100 text-slate-600 font-black text-[10px] rounded-lg uppercase tracking-wider hover:bg-slate-200 transition-colors"
+                          >
+                            Edit
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteRecord(batch)}
+                            className="px-2.5 py-1.5 bg-red-50 text-red-600 font-black text-[10px] rounded-lg uppercase tracking-wider hover:bg-red-100 transition-colors"
+                          >
+                            Delete
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
 
-          {/* Right Audit Trail Column (Visible strictly to Admins) */}
+          {/* REAL-TIME AUDIT TRACKING TIMELINE PANEL (Visible strictly to Admin view dashboards) */}
           {isAdmin && (
-            <div className="bg-white rounded-[28px] border border-slate-100 shadow-sm p-6 h-fit max-h-[75vh] flex flex-col">
-              <h2 className="text-xs font-black uppercase text-slate-400 tracking-wider mb-4 flex items-center justify-between">
-                <span>Manager Activity Tracker Trail</span>
-                <span className="px-2 py-0.5 bg-red-50 text-red-600 text-[9px] font-black rounded-md animate-pulse">LIVE AUDIT</span>
-              </h2>
-              
-              <div className="overflow-y-auto divide-y divide-slate-100 pr-1 flex-1">
+            <div className="bg-white rounded-[28px] border border-slate-100 shadow-sm p-5 lg:col-span-1 h-fit max-h-[640px] flex flex-col">
+              <div className="pb-3 border-b border-slate-50 mb-3 flex items-center justify-between">
+                <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Manager Activity Trail Logs</h3>
+                <span className="px-2 py-0.5 bg-red-50 text-red-600 font-black text-[8px] rounded-md animate-pulse">LIVE MONITOR</span>
+              </div>
+              <div className="overflow-y-auto divide-y divide-slate-50 flex-1 pr-1">
                 {auditLogs.length === 0 ? (
-                  <p className="text-xs text-slate-400 italic py-2">No audited actions caught yet.</p>
+                  <p className="text-[11px] text-slate-400 italic py-4 text-center">No structural log history found.</p>
                 ) : (
                   auditLogs.map((log) => (
-                    <div key={log.id} className="py-3 text-xs">
-                      <div className="flex justify-between items-start font-bold">
-                        <span className="text-slate-800">{log.performed_by_name}</span>
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-black ${
+                    <div key={log.id} className="py-2.5 text-[11px]">
+                      <div className="flex justify-between items-start font-bold gap-2">
+                        <span className="text-slate-700 truncate">{log.performed_by_name}</span>
+                        <span className={`text-[8px] px-1.5 py-0.5 rounded font-black flex-shrink-0 ${
                           log.action_type === 'TAKEN' ? 'bg-amber-50 text-amber-700' :
-                          log.action_type === 'DELETE' ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700'
+                          log.action_type === 'DELETE' ? 'bg-red-50 text-red-700' :
+                          log.action_type === 'REFILL' ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-700'
                         }`}>
                           {log.action_type}
                         </span>
                       </div>
-                      <p className="text-slate-500 mt-1">
-                        Product: <span className="font-semibold text-slate-700">{log.item_name}</span> 
-                        {log.quantity_changed !== 0 && ` (${log.quantity_changed > 0 ? '+' : ''}${log.quantity_changed})`}
+                      <p className="text-slate-500 mt-0.5 font-medium">
+                        Product: <span className="font-bold text-slate-700">{log.item_name}</span> 
+                        {log.package_qty_changed !== 0 && ` (${log.package_qty_changed > 0 ? '+' : ''}${log.package_qty_changed} Pkgs)`}
                       </p>
                       {log.old_value && (
-                        <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                        <p className="text-[9px] text-slate-400 font-mono mt-0.5">
                           {log.old_value} &rarr; {log.new_value}
                         </p>
                       )}
-                      <p className="text-[9px] text-slate-300 mt-1">{new Date(log.created_at).toLocaleString()}</p>
+                      <p className="text-[8px] text-slate-300 font-medium mt-0.5">{new Date(log.created_at).toLocaleString()}</p>
                     </div>
                   ))
                 )}
@@ -358,71 +504,64 @@ export default function BulkInventory({ userRole }) {
 
         </div>
 
-        {/* --- DYNAMIC INTERACTION DIALOG MODALS --- */}
+        {/* --- DYNAMIC INTERACTION DIALOG DIALOGS --- */}
         {activeModal && (
           <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-            <div className="bg-white w-full max-w-md rounded-[24px] p-6 shadow-xl">
-              <h3 className="text-sm font-black uppercase text-slate-900 tracking-wider mb-4">
-                {activeModal === 'create' && 'Create New Vault Entry'}
-                {activeModal === 'refill' && `Refill Stock: ${selectedItem?.item_name}`}
-                {activeModal === 'edit' && `Modify Base Record Details`}
-                {activeModal === 'take' && `Extract Stock: ${selectedItem?.item_name}`}
+            <div className="bg-white w-full max-w-sm rounded-[24px] p-6 shadow-xl animate-in zoom-in-95 duration-100">
+              <h3 className="text-xs font-black uppercase text-slate-900 tracking-wider mb-4">
+                {activeModal === 'refill' && `Refill Packages: ${selectedBatch?.name}`}
+                {activeModal === 'edit' && `Modify Product Entry Name`}
+                {activeModal === 'take' && `Log Packages Taken: ${selectedBatch?.name}`}
               </h3>
 
-              <form onSubmit={(e) => e.preventDefault()}>
-                {(activeModal === 'create' || activeModal === 'edit') && (
-                  <div className="mb-4">
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Item Title Name</label>
+              <div className="flex flex-col gap-4">
+                {activeModal === 'edit' ? (
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Update Item Title</label>
                     <input 
                       type="text" 
-                      value={itemName} 
-                      onChange={(e) => setItemName(e.target.value)}
-                      className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl font-bold text-sm outline-none focus:border-slate-300"
-                      placeholder="e.g. Luxury Base Gold Lotion"
+                      value={modalNameInput} 
+                      onChange={(e) => setModalNameInput(e.target.value)}
+                      className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs outline-none focus:border-slate-300"
                     />
                   </div>
-                )}
-
-                {(activeModal === 'create' || activeModal === 'refill' || activeModal === 'take') && (
-                  <div className="mb-6">
+                ) : (
+                  <div>
                     <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
-                      {activeModal === 'create' && 'Initial Stock Quantity'}
-                      {activeModal === 'refill' && 'Add Quantity Increments'}
-                      {activeModal === 'take' && `Quantity Taken (Max: ${selectedItem?.total_quantity})`}
+                      {activeModal === 'refill' ? 'Add Package Count Increments' : `Package Count Extracted (Max Available: ${selectedBatch?.package_quantity})`}
                     </label>
                     <input 
                       type="number" 
                       min="1"
-                      value={quantityInput} 
-                      onChange={(e) => setQuantityInput(e.target.value)}
-                      className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl font-black text-sm outline-none focus:border-slate-300"
+                      placeholder="e.g. 5"
+                      value={modalQuantityInput} 
+                      onChange={(e) => setModalQuantityInput(e.target.value)}
+                      className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl font-black text-xs outline-none focus:border-slate-300"
                     />
                   </div>
                 )}
 
-                <div className="flex gap-2 justify-end mt-4">
+                <div className="flex gap-2 justify-end mt-2">
                   <button 
                     type="button" 
-                    onClick={closeModals}
-                    className="px-4 py-2 bg-slate-100 text-slate-500 rounded-xl text-xs font-bold uppercase"
+                    onClick={closeOperationalModals}
+                    disabled={loading}
+                    className="px-4 py-2 bg-slate-100 text-slate-500 rounded-xl text-[10px] font-bold uppercase tracking-wider"
                   >
                     Cancel
                   </button>
                   
-                  {activeModal === 'create' && (
-                    <button onClick={handleAddNewItem} className="px-5 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold uppercase">Insert</button>
-                  )}
                   {activeModal === 'refill' && (
-                    <button onClick={handleRefill} className="px-5 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold uppercase">Confirm Refill</button>
+                    <button onClick={handleRefillStock} disabled={loading} className="px-4 py-2 bg-blue-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-wider">Commit Refill</button>
                   )}
                   {activeModal === 'edit' && (
-                    <button onClick={handleEdit} className="px-5 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold uppercase">Save Changes</button>
+                    <button onClick={handleEditRecord} disabled={loading} className="px-4 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-bold uppercase tracking-wider">Save Title</button>
                   )}
                   {activeModal === 'take' && (
-                    <button onClick={handleTakeItems} className="px-5 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold uppercase">Log Dispatched Units</button>
+                    <button onClick={handleTakePackages} disabled={loading} className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-wider">Log Dispatched</button>
                   )}
                 </div>
-              </form>
+              </div>
             </div>
           </div>
         )}
