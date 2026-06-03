@@ -1,11 +1,10 @@
-// src/pages/AdminDashboard.jsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLanguage } from '../context/LanguageContext.jsx'; 
 import { useAuth } from '../context/AuthContext.jsx'; 
 import { supabase } from '../api/supabaseClient.js'; 
 
 // Sub-views
-import Debtors from '../views/admin/Debtors.jsx';
+import BulkStock from '../views/admin/BulkStock.jsx'; // Swapped view module reference
 import Expenses from '../views/admin/Expenses.jsx';
 import Inventory from '../views/admin/Inventory.jsx';
 import Reports from '../views/admin/Reports.jsx';
@@ -13,32 +12,31 @@ import StaffManagement from '../views/admin/StaffManagement.jsx';
 import StaffPerformance from '../views/admin/StaffPerformance.jsx';
 import Sales from '../views/staff/Sales.jsx';
 
-// 🔄 Static View Dictionary: Declared outside component to prevent garbage collection sweeps during renders
+// Static View Dictionary
 const VIEW_COMPONENTS = {
   inventory: Inventory,
   reports: Reports,
   sales: Sales,
   staff: StaffManagement,
-  debtors: Debtors,
+  bulkstock: BulkStock, // Remapped cleanly to capture bulk warehouse files
   performance: StaffPerformance,
   expenses: Expenses
 };
 
 export default function AdminDashboard() {
   const { language, toggleLanguage, t } = useLanguage(); 
-  const { user, branchId, loading: authLoading, signOut } = useAuth(); // 🛡️ Destructured context signOut
+  const { user, branchId, loading: authLoading, signOut } = useAuth();
   const [view, setView] = useState('menu');
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const dropdownRef = useRef(null);
 
   const [stats, setStats] = useState({
     totalRevenue: 0,
-    totalDebt: 0,
+    bulkStockCount: 0, // Swapped variable
     lowStockCount: 0,
     totalExpenses: 0
   });
 
-  // 🔄 Stable navigation wrapper prevents downstream child hook mounting race-conditions
   const handleBackToMenu = useCallback(() => {
     setView('menu');
   }, []);
@@ -49,34 +47,33 @@ export default function AdminDashboard() {
       today.setHours(0,0,0,0);
 
       const salesQuery = supabase.from('sales').select('total_amount, payment_status').gte('created_at', today.toISOString());
-      
-      // 💸 FIX: Lifted the strict '.eq("status", "approved")' barrier so newly filed expenses reflect immediately on metrics blocks
       const expenseQuery = supabase.from('expenses').select('amount').gte('created_at', today.toISOString());
       const inventoryQuery = supabase.from('inventory').select('*', { count: 'exact', head: true }).lt('stock_quantity', 5);
+      
+      // Query exact batch counts inside the new Bulk Stock ledger
+      const bulkStockQuery = supabase.from('bulk_inventory').select('*', { count: 'exact', head: true });
 
-      const [salesRes, expenseRes, inventoryRes] = await Promise.all([
+      const [salesRes, expenseRes, inventoryRes, bulkStockRes] = await Promise.all([
         salesQuery,
         expenseQuery,
-        inventoryQuery
+        inventoryQuery,
+        bulkStockQuery
       ]);
 
       const salesData = salesRes.data || [];
       const expenseData = expenseRes.data || [];
       const lowStock = inventoryRes.count || 0;
+      const bulkCount = bulkStockRes.count || 0;
 
       const revenue = salesData
         .filter(s => s.payment_status === 'paid')
-        .reduce((sum, s) => sum + (Number(s.total_amount) || 0), 0);
-      
-      const debt = salesData
-        .filter(s => s.payment_status === 'debt')
         .reduce((sum, s) => sum + (Number(s.total_amount) || 0), 0);
 
       const expenses = expenseData.reduce((sum, e) => sum + Number(e.amount), 0);
 
       setStats({
         totalRevenue: revenue,
-        totalDebt: debt,
+        bulkStockCount: bulkCount,
         lowStockCount: lowStock,
         totalExpenses: expenses
       });
@@ -121,7 +118,6 @@ export default function AdminDashboard() {
       );
     }
     
-    // 🔌 EXPOSED HOOK: Passing refreshMetrics hook down so form events reload root variables instantly
     return <Component onBack={handleBackToMenu} branchId={branchId} refreshMetrics={fetchAdminMetrics} />;
   }
 
@@ -129,7 +125,7 @@ export default function AdminDashboard() {
     <div className="min-h-screen bg-[#F4F3ED] text-[#111111] p-4 md:p-8 font-sans antialiased">
       <div className="max-w-5xl mx-auto">
         
-        {/* --- PREMIUM EXECUTIVE HEADER --- */}
+        {/* EXECUTIVE HEADER */}
         <div className="flex justify-between items-center mb-8 mt-4 relative">
           <div>
             <p className="text-[#3F51B5] font-bold text-[10px] uppercase tracking-widest mb-1 flex items-center gap-1">
@@ -195,7 +191,7 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* --- GLOBAL SCOPED METRICS PILLS --- */}
+        {/* METRICS PILLS */}
         <div className="grid grid-cols-3 gap-3 md:gap-4 mb-8">
           <div className="bg-white p-4 rounded-[24px] shadow-sm border border-slate-100 flex flex-col justify-between min-h-[100px]">
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total HQ Net Balance</p>
@@ -211,17 +207,15 @@ export default function AdminDashboard() {
             </p>
           </div>
 
-          <div className={`p-4 rounded-[24px] transition-all flex flex-col justify-between min-h-[100px] border ${
-            stats.lowStockCount > 0 ? 'bg-[#FFEBEA]' : 'bg-white border-slate-100 shadow-sm'
-          }`}>
-            <p className={`text-[10px] font-bold uppercase tracking-wider ${stats.lowStockCount > 0 ? 'text-[#FF5A50]' : 'text-slate-400'}`}>Global Stock Alerts</p>
-            <p className={`text-base md:text-xl font-extrabold tracking-tight ${stats.lowStockCount > 0 ? 'text-[#FF5A50]' : 'text-slate-800'}`}>
-              {stats.lowStockCount} <span className="text-[10px] font-medium opacity-60 normal-case">{t('items') || 'Items'}</span>
+          <div className="bg-white border-slate-100 p-4 rounded-[24px] shadow-sm flex flex-col justify-between min-h-[100px]">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Active Bulk Batches</p>
+            <p className="text-base md:text-xl font-extrabold tracking-tight text-slate-800">
+              {stats.bulkStockCount} <span className="text-[10px] font-medium opacity-60 normal-case">Batches</span>
             </p>
           </div>
         </div>
 
-        {/* --- NAVIGATION GRID --- */}
+        {/* NAVIGATION GRID */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <button 
             onClick={() => setView('inventory')} 
@@ -251,15 +245,16 @@ export default function AdminDashboard() {
             </div>
           </button>
 
+          {/* TRANSFORMATION MODULE: Swapped Debtor Ledger with Bulk Stock Supply Framework */}
           <button 
-            onClick={() => setView('debtors')} 
+            onClick={() => setView('bulkstock')} 
             className="bg-white border border-slate-100 p-6 md:p-8 rounded-[28px] transition-all hover:scale-[1.01] active:scale-98 text-left group shadow-sm"
           >
             <div className="flex flex-col h-full justify-between">
-              <span className="text-2xl bg-amber-50 p-3 rounded-2xl w-fit inline-block mb-4 shadow-sm">💳</span>
+              <span className="text-2xl bg-amber-50 p-3 rounded-2xl w-fit inline-block mb-4 shadow-sm">🏭</span>
               <div>
-                <h3 className="text-lg font-extrabold tracking-tight text-slate-900">Debtor Ledger</h3>
-                <p className="text-slate-400 text-[11px] mt-0.5 font-medium uppercase tracking-wider">System-Wide Unpaid Tabs</p>
+                <h3 className="text-lg font-extrabold tracking-tight text-slate-900">Bulk Stock Inventory</h3>
+                <p className="text-slate-400 text-[11px] mt-0.5 font-medium uppercase tracking-wider">Manage Wholesale Packages</p>
               </div>
             </div>
           </button>
@@ -290,7 +285,6 @@ export default function AdminDashboard() {
             </div>
           </button>
 
-          {/* ⚡ FIX: Correctly wired up view redirection point to point to 'staff' component layout */}
           <button 
             onClick={() => setView('staff')} 
             className="bg-white border border-slate-100 p-6 md:p-8 rounded-[28px] transition-all hover:scale-[1.01] active:scale-98 text-left group shadow-sm"

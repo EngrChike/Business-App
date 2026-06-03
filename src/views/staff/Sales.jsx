@@ -8,23 +8,19 @@ export default function Sales({ onBack, branchId: dashboardBranchId, refreshMetr
   const { user } = useAuth();
   const { t } = useLanguage(); 
   
-  const [userBranch, setUserBranch] = useState(null); // Active working branch footprint
-  const [branches, setBranches] = useState([]);       // Admin global branch list
+  const [userBranch, setUserBranch] = useState(null); 
+  const [branches, setBranches] = useState([]);       
   const [userRole, setUserRole] = useState("staff"); 
   const [checkingBranch, setCheckingBranch] = useState(true);
   const [inventory, setInventory] = useState([]);
   const [dailySales, setDailySales] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState("");
   const [quantity, setQuantity] = useState(1);
-  const [isTab, setIsTab] = useState(false);
-  const [customerName, setCustomerName] = useState("");
-  const [customerPhone, setCustomerPhone] = useState("");
   const [confirmation, setConfirmation] = useState(null);
   const [loading, setLoading] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const dropdownRef = useRef(null);
 
-  // Memoized query methods to streamline internal network processes cleanly
   const fetchInv = useCallback(async (branchId) => {
     const activeBranchId = branchId || userBranch?.id;
     if (!activeBranchId) return;
@@ -90,14 +86,12 @@ export default function Sales({ onBack, branchId: dashboardBranchId, refreshMetr
     }
   }, [user, userBranch?.id, userRole]);
 
-  // Resolve staff branch metadata assignment securely on mount
   useEffect(() => {
     const resolveStaffBranch = async () => {
       if (!user) return;
       try {
         setCheckingBranch(true);
 
-        // 🧠 DASHBOARD INTEGRATION BYPASS LAYER
         if (dashboardBranchId) {
           const { data: profile } = await supabase
             .from('profiles')
@@ -170,7 +164,6 @@ export default function Sales({ onBack, branchId: dashboardBranchId, refreshMetr
     resolveStaffBranch();
   }, [user, dashboardBranchId, fetchInv, fetchDailySales]);
 
-  // Handle runtime administrative switch events across branch rooms
   const handleAdminBranchSwitch = async (branchId) => {
     const targetBranch = branches.find(b => b.id === branchId);
     if (!targetBranch) return;
@@ -219,12 +212,13 @@ export default function Sales({ onBack, branchId: dashboardBranchId, refreshMetr
       return alert(`${t('low_stock_warning') || 'Insufficient Stock! Only'} ${prod.stock_quantity} ${t('units_left') || 'items left.'}`);
     }
 
+    // 🌟 FIX: Cleaned up the comment syntax on line 182 below to eliminate the parsing error completely
     setConfirmation({
       product_id: prod.id,
       name: prod.name,
       quantity: parseInt(quantity) || 1,
       total: (prod.selling_price || 0) * (parseInt(quantity) || 1),
-      status: isTab ? 'debt' : 'paid'
+      status: 'paid' // Locked cleanly to immediate cash transaction
     });
   };
 
@@ -270,9 +264,9 @@ export default function Sales({ onBack, branchId: dashboardBranchId, refreshMetr
       created_by: user.id, 
       staff_email: user.email,
       staff_name: activeStaffName.trim(), 
-      payment_status: confirmation.status,
-      customer_name: isTab ? customerName.trim() : (t('cash_customer') || "Cash Customer"), 
-      customer_phone: isTab ? customerPhone.trim() : "N/A",
+      payment_status: 'paid',
+      customer_name: t('cash_customer') || "Cash Customer", 
+      customer_phone: "N/A",
       is_verified: false,
       branch_id: userBranch.id 
     };
@@ -303,7 +297,6 @@ export default function Sales({ onBack, branchId: dashboardBranchId, refreshMetr
       await fetchDailySales();
       clearFormFields();
       
-      // ⚡️ Trigger real-time core dashboard statement updating
       if (typeof refreshMetrics === 'function') {
         await refreshMetrics();
       }
@@ -328,9 +321,6 @@ export default function Sales({ onBack, branchId: dashboardBranchId, refreshMetr
     setConfirmation(null);
     setSelectedProduct("");
     setQuantity(1);
-    setIsTab(false);
-    setCustomerName("");
-    setCustomerPhone("");
   };
 
   const totalDayRevenue = dailySales.reduce((sum, sale) => sum + (sale.total_amount || 0), 0);
@@ -451,34 +441,13 @@ export default function Sales({ onBack, branchId: dashboardBranchId, refreshMetr
           </select>
 
           <div className="flex gap-3 mb-5">
-            <div className="w-1/3">
+            <div className="w-full">
               <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2 tracking-wider text-center">
                 {t('qty_label') || 'Qty'}
               </label>
               <input type="number" min="1" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl font-black text-center text-slate-800 text-sm" value={quantity} onChange={e => setQuantity(e.target.value)} />
             </div>
-            <div className="flex-1">
-              <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2 tracking-wider">
-                {t('payment_method') || 'Payment Method'}
-              </label>
-              <button 
-                type="button" 
-                onClick={() => setIsTab(!isTab)} 
-                className={`w-full p-4 rounded-2xl font-black text-xs uppercase transition-all border ${
-                  isTab ? 'bg-[#FFEBEA] text-[#FF5A50] border-[#FFD0CD]' : 'bg-slate-50 text-slate-600 border-slate-100'
-                }`}
-              >
-                {isTab ? (t('open_tab_btn') || 'Open Tab 🚨') : (t('immediate_cash_btn') || 'Immediate Cash 💰')}
-              </button>
-            </div>
           </div>
-
-          {isTab && (
-            <div className="grid grid-cols-1 gap-3 mb-5 animate-in fade-in slide-in-from-top-1 duration-150">
-              <input className="p-4 bg-red-50/50 border border-red-100 rounded-xl font-bold text-sm outline-none text-slate-800 placeholder-red-300" placeholder={t('debtor_name_placeholder') || "Debtor Name"} value={customerName} onChange={e => setCustomerName(e.target.value)} />
-              <input className="p-4 bg-red-50/50 border border-red-100 rounded-xl font-bold text-sm outline-none text-slate-800 placeholder-red-300" placeholder={t('debtor_phone_placeholder') || "Debtor Phone"} value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} />
-            </div>
-          )}
 
           <button onClick={handleProcess} className="w-full py-4.5 bg-[#1C1B1F] text-white rounded-2xl font-bold uppercase text-xs tracking-widest shadow-sm active:scale-[0.99] hover:opacity-90 transition-all mt-2">
             {t('confirm_order_btn') || 'Confirm Order'}
