@@ -1,3 +1,4 @@
+// src/views/staff/Sales.jsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLanguage } from '../../context/LanguageContext.jsx'; 
 import { supabase } from '../../api/supabaseClient';
@@ -212,17 +213,18 @@ export default function Sales({ onBack, branchId: dashboardBranchId, refreshMetr
       return alert(`${t('low_stock_warning') || 'Insufficient Stock! Only'} ${prod.stock_quantity} ${t('units_left') || 'items left.'}`);
     }
 
-    // 🌟 FIX: Cleaned up the comment syntax on line 182 below to eliminate the parsing error completely
     setConfirmation({
       product_id: prod.id,
       name: prod.name,
       quantity: parseInt(quantity) || 1,
       total: (prod.selling_price || 0) * (parseInt(quantity) || 1),
-      status: 'paid' // Locked cleanly to immediate cash transaction
+      status: 'paid' 
     });
   };
 
   const executeLocalStateDeduction = useCallback(() => {
+    if (!userBranch?.id || !confirmation) return;
+    
     setInventory(prev => {
       const parsedUpdatedInv = prev.map(item => {
         if (item.id === confirmation.product_id) {
@@ -376,13 +378,13 @@ export default function Sales({ onBack, branchId: dashboardBranchId, refreshMetr
                 >
                   {branches.map(b => (
                     <option key={b.id} value={b.id} className="bg-white text-slate-900 font-bold">
-                      👑 Switch: {b.name}
+                      {`👑 Switch: ${b.name}`}
                     </option>
                   ))}
                 </select>
               ) : (
                 <span className="text-[10px] font-black uppercase text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-md tracking-wider inline-block">
-                  📍 Station: {userBranch.name}
+                  {`📍 Station: ${userBranch.name}`}
                 </span>
               )}
               
@@ -407,7 +409,7 @@ export default function Sales({ onBack, branchId: dashboardBranchId, refreshMetr
                 <div className="pb-2 border-b border-slate-100">
                   <p className="text-xs font-black text-slate-800 truncate">{staffDisplayName}</p>
                   <p className="text-[10px] font-medium text-slate-400 truncate mt-0.5">{user?.email}</p>
-                  <p className="text-[9px] font-black text-indigo-600 uppercase mt-1">Role: {userRole}</p>
+                  <p className="text-[9px] font-black text-indigo-600 uppercase mt-1">{`Role: ${userRole}`}</p>
                 </div>
                 <div className="pt-2">
                   <button 
@@ -432,10 +434,10 @@ export default function Sales({ onBack, branchId: dashboardBranchId, refreshMetr
             value={selectedProduct} 
             onChange={(e) => setSelectedProduct(e.target.value)}
           >
-            <option value="">-- {t('select_item_option') || 'Select Item'} --</option>
+            <option value="">{`-- ${t('select_item_option') || 'Select Item'} --`}</option>
             {inventory.map(item => (
               <option key={item.id} value={item.id}>
-                {item.name} ({item.stock_quantity} left) — {item.selling_price?.toLocaleString()} FCFA
+                {`${item.name} (${item.stock_quantity} left) — ${item.selling_price?.toLocaleString()} FCFA`}
               </option>
             ))}
           </select>
@@ -476,10 +478,12 @@ export default function Sales({ onBack, branchId: dashboardBranchId, refreshMetr
                   <div>
                     <p className="font-bold text-sm text-slate-800">{sale.inventory?.name || "Product Item"}</p>
                     <p className="text-[10px] text-slate-400 font-medium mt-0.5">
-                      {t('quantity_size') || 'Quantity Size'}: {sale.quantity}
+                      {`${t('quantity_size') || 'Quantity Size'}: ${sale.quantity}`}
                     </p>
                   </div>
-                  <p className="font-extrabold text-slate-900 text-sm">+{sale.total_amount?.toLocaleString()} <span className="text-[10px] text-slate-400 font-bold">FCFA</span></p>
+                  <p className="font-extrabold text-slate-900 text-sm">
+                    {`+${sale.total_amount?.toLocaleString()}`} <span className="text-[10px] text-slate-400 font-bold">FCFA</span>
+                  </p>
                 </div>
               ))
             )}
@@ -497,7 +501,7 @@ export default function Sales({ onBack, branchId: dashboardBranchId, refreshMetr
         {confirmation && (
           <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
             <div className="bg-white w-full max-w-sm rounded-[28px] p-8 text-center shadow-2xl animate-in zoom-in-95 duration-150">
-              <p className="text-3xl font-black text-slate-900 tracking-tight">{confirmation.total.toLocaleString()} FCFA</p>
+              <p className="text-3xl font-black text-slate-900 tracking-tight">{`${confirmation.total.toLocaleString()} FCFA`}</p>
               <p className="text-[#3F51B5] font-bold mt-1 mb-8 uppercase text-[10px] tracking-wider">{confirmation.name}</p>
               <div className="flex flex-col gap-2">
                 <button 
