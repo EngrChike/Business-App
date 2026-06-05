@@ -9,14 +9,14 @@ export default function BulkStock({ onBack, refreshMetrics }) {
   const { user } = useAuth();
   
   // Role & Master Data State
-  const [userRole, setUserRole] = useState('manager'); // Safe fallback
+  const [userRole, setUserRole] = useState('manager'); 
   const [batches, setBatches] = useState([]);
   const [branches, setBranches] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [checkingRole, setCheckingRole] = useState(true);
 
-  // Form Fields (Incoming Shipments - Admin Only)
+  // Form Fields (Incoming Shipments)
   const [name, setName] = useState('');
   const [packageType, setPackageType] = useState('Bag'); 
   const [packageQty, setPackageQty] = useState('');
@@ -25,12 +25,12 @@ export default function BulkStock({ onBack, refreshMetrics }) {
   const [selectedBranch, setSelectedBranch] = useState('');
 
   // Modals Configuration State
-  const [activeModal, setActiveModal] = useState(null); // 'refill' | 'edit' | 'take'
+  const [activeModal, setActiveModal] = useState(null); 
   const [selectedBatch, setSelectedBatch] = useState(null);
   const [modalQuantityInput, setModalQuantityInput] = useState('');
   const [modalNameInput, setModalNameInput] = useState('');
 
-  // PASSWORD GATE STATE
+  // Password Gate State
   const [showPasswordGate, setShowPasswordGate] = useState(false);
   const [securityPassword, setSecurityPassword] = useState('');
   const [pendingAction, setPendingAction] = useState(null);
@@ -39,7 +39,6 @@ export default function BulkStock({ onBack, refreshMetrics }) {
   const isAdmin = userRole === 'admin';
   const isManager = userRole === 'manager';
 
-  // Secure Override Key
   const MASTER_ADMIN_KEY = "1234";
 
   // --- Fetch System Context & Database Ledgers ---
@@ -86,6 +85,7 @@ export default function BulkStock({ onBack, refreshMetrics }) {
 
     } catch (err) {
       console.error("Bulk Ledger Sync Error:", err.message);
+      alert("Error fetching activity logs: " + err.message);
     } finally {
       setLoading(false);
       setCheckingRole(false);
@@ -96,7 +96,7 @@ export default function BulkStock({ onBack, refreshMetrics }) {
     fetchBulkData();
   }, [fetchBulkData]);
 
-  // --- PASSWORD VERIFICATION GATEKEEPER ---
+  // --- Password Verification Gatekeeper ---
   const handleVerifyAndProceed = () => {
     if (securityPassword === MASTER_ADMIN_KEY) {
       const action = pendingAction;
@@ -124,7 +124,7 @@ export default function BulkStock({ onBack, refreshMetrics }) {
     }
   };
 
-  // --- 1. INITIAL BULK ENTRY CREATION (Admin Only) ---
+  // --- 1. Initial Bulk Entry Creation ---
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!name || !packageQty || !unitsPerPkg || !costPricePerPkg || !selectedBranch || loading) {
@@ -151,7 +151,8 @@ export default function BulkStock({ onBack, refreshMetrics }) {
 
       if (error) throw error;
 
-      await supabase.from('bulk_inventory_logs').insert([
+      // Assertive log error handling
+      const { error: logError } = await supabase.from('bulk_inventory_logs').insert([
         {
           bulk_id: data?.id,
           item_name: name.trim(),
@@ -165,6 +166,8 @@ export default function BulkStock({ onBack, refreshMetrics }) {
         }
       ]);
 
+      if (logError) throw logError;
+
       setName('');
       setPackageQty('');
       setUnitsPerPkg('');
@@ -172,15 +175,15 @@ export default function BulkStock({ onBack, refreshMetrics }) {
       
       await fetchBulkData();
       if (typeof refreshMetrics === 'function') refreshMetrics();
-      alert("Bulk stock entry committed to system ledger successfully!");
+      alert("Bulk stock entry committed successfully!");
     } catch (err) {
-      alert("Committed error: " + err.message);
+      alert("Database Error: " + err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  // --- 2. REFILL PACKAGES OPERATION (Admin Password Protected) ---
+  // --- 2. Refill Stock Operation ---
   const handleRefillStock = async () => {
     if (!modalQuantityInput || parseInt(modalQuantityInput) <= 0) return alert('Enter a valid quantity increment.');
     setLoading(true);
@@ -196,7 +199,7 @@ export default function BulkStock({ onBack, refreshMetrics }) {
 
       if (error) throw error;
 
-      await supabase.from('bulk_inventory_logs').insert([
+      const { error: logError } = await supabase.from('bulk_inventory_logs').insert([
         {
           bulk_id: selectedBatch.id,
           item_name: selectedBatch.name,
@@ -210,17 +213,19 @@ export default function BulkStock({ onBack, refreshMetrics }) {
         }
       ]);
 
+      if (logError) throw logError;
+
       closeOperationalModals();
       await fetchBulkData();
       if (typeof refreshMetrics === 'function') refreshMetrics();
     } catch (err) {
-      alert(err.message);
+      alert("Refill Log Error: " + err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  // --- 3. EDIT SYSTEM CONTEXT RECORD (Admin Password Protected) ---
+  // --- 3. Edit Record Name ---
   const handleEditRecord = async () => {
     if (!modalNameInput.trim()) return alert('Item title cannot be left blank.');
     setLoading(true);
@@ -233,7 +238,7 @@ export default function BulkStock({ onBack, refreshMetrics }) {
 
       if (error) throw error;
 
-      await supabase.from('bulk_inventory_logs').insert([
+      const { error: logError } = await supabase.from('bulk_inventory_logs').insert([
         {
           bulk_id: selectedBatch.id,
           item_name: modalNameInput.trim(),
@@ -247,18 +252,20 @@ export default function BulkStock({ onBack, refreshMetrics }) {
         }
       ]);
 
+      if (logError) throw logError;
+
       closeOperationalModals();
       await fetchBulkData();
     } catch (err) {
-      alert(err.message);
+      alert("Edit Log Error: " + err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  // --- 4. DELETE ENTIRE RECORD (Admin Password Protected Execution) ---
+  // --- 4. Delete Record ---
   const executeDeleteRecord = async (batch) => {
-    if (!window.confirm(`Are you sure you want to delete "${batch.name}" entirely from bulk registers? This cannot be undone.`)) return;
+    if (!window.confirm(`Are you sure you want to delete "${batch.name}"?`)) return;
     setLoading(true);
 
     try {
@@ -269,7 +276,7 @@ export default function BulkStock({ onBack, refreshMetrics }) {
 
       if (error) throw error;
 
-      await supabase.from('bulk_inventory_logs').insert([
+      const { error: logError } = await supabase.from('bulk_inventory_logs').insert([
         {
           bulk_id: batch.id,
           item_name: batch.name,
@@ -283,16 +290,18 @@ export default function BulkStock({ onBack, refreshMetrics }) {
         }
       ]);
 
+      if (logError) throw logError;
+
       await fetchBulkData();
       if (typeof refreshMetrics === 'function') refreshMetrics();
     } catch (err) {
-      alert(err.message);
+      alert("Delete Log Error: " + err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  // --- 5. RECORD ITEM PACKAGES TAKEN ---
+  // --- 5. Take Packages Operation ---
   const handleTakePackages = async () => {
     if (!modalQuantityInput || parseInt(modalQuantityInput) <= 0) return alert('Enter a valid package amount extracted.');
     const countTaken = parseInt(modalQuantityInput);
@@ -312,8 +321,8 @@ export default function BulkStock({ onBack, refreshMetrics }) {
 
       if (error) throw error;
 
-      // Appends Audit Trail Entry
-      await supabase.from('bulk_inventory_logs').insert([
+      // Appends Audit Trail Entry with Strict Error Interception
+      const { error: logError } = await supabase.from('bulk_inventory_logs').insert([
         {
           bulk_id: selectedBatch.id,
           item_name: selectedBatch.name,
@@ -322,10 +331,12 @@ export default function BulkStock({ onBack, refreshMetrics }) {
           old_value: `${selectedBatch.package_quantity} Pkgs`,
           new_value: `${remainingQty} Pkgs`,
           performed_by_id: user?.id,
-          created_by: user?.id, // Populates 'created_by' column
+          created_by: user?.id, 
           performed_by_name: currentUserName 
         }
       ]);
+
+      if (logError) throw logError;
 
       closeOperationalModals();
       await fetchBulkData();
@@ -367,7 +378,7 @@ export default function BulkStock({ onBack, refreshMetrics }) {
     <div className="min-h-screen bg-[#F4F3ED] text-[#111111] p-4 md:p-8 font-sans antialiased pb-24">
       <div className="max-w-6xl mx-auto">
         
-        {/* BACK ACTION & HEADER */}
+        {/* Back Button */}
         <button onClick={onBack} className="text-[#3F51B5] font-bold text-xs tracking-wider uppercase mb-2 block hover:opacity-80 transition-opacity">
           &larr; {t('back') || 'Back'}
         </button>
@@ -380,10 +391,10 @@ export default function BulkStock({ onBack, refreshMetrics }) {
           </div>
         </div>
 
-        {/* SECURE LAYOUT GRID */}
+        {/* Layout Grid */}
         <div className={`grid grid-cols-1 ${(isAdmin || isManager) ? 'lg:grid-cols-4' : 'grid-cols-1'} gap-6`}>
           
-          {/* LOGGING ENTRY FORM (Admin Only) */}
+          {/* Shipment Logging Form */}
           {isAdmin && (
             <div className="bg-white p-6 rounded-[28px] shadow-sm border border-slate-100 lg:col-span-1 h-fit">
               <h2 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-4">Log Incoming Shipment</h2>
@@ -429,14 +440,14 @@ export default function BulkStock({ onBack, refreshMetrics }) {
                   </select>
                 </div>
 
-                <button type="submit" disabled={loading} className="w-full mt-2 py-3.5 bg-slate-900 text-white rounded-xl font-bold text-xs uppercase tracking-wider disabled:opacity-50 shadow-sm active:scale-98 transition-all">
-                  {loading ? "Processing Ledger..." : "Commit Bulk Stock"}
+                <button type="submit" disabled={loading} className="w-full mt-2 py-3.5 bg-slate-900 text-white rounded-xl font-bold text-xs uppercase tracking-wider disabled:opacity-50 shadow-sm transition-all">
+                  {loading ? "Processing..." : "Commit Bulk Stock"}
                 </button>
               </form>
             </div>
           )}
 
-          {/* STOCK MONITORING LEDGER LIST */}
+          {/* Active Vault Inventory Registers */}
           <div className={`bg-white rounded-[28px] border border-slate-100 shadow-sm overflow-hidden ${isAdmin ? 'lg:col-span-2' : 'lg:col-span-3'}`}>
             <div className="p-5 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
               <h2 className="font-extrabold text-xs text-slate-400 uppercase tracking-wider">Active Bulk Vault Balance Registers</h2>
@@ -445,7 +456,7 @@ export default function BulkStock({ onBack, refreshMetrics }) {
 
             <div className="divide-y divide-slate-100 max-h-[580px] overflow-y-auto p-5">
               {batches.length === 0 ? (
-                <p className="text-slate-400 text-xs italic py-8 text-center">No bulk shipments registered in the operational master yet.</p>
+                <p className="text-slate-400 text-xs italic py-8 text-center">No bulk shipments registered yet.</p>
               ) : (
                 batches.map((batch) => (
                   <div key={batch.id} className="flex flex-col sm:flex-row sm:items-center justify-between py-4.5 first:pt-0 last:pb-0 gap-3">
@@ -512,7 +523,7 @@ export default function BulkStock({ onBack, refreshMetrics }) {
             </div>
           </div>
 
-          {/* REAL-TIME AUDIT TRACKING TIMELINE PANEL */}
+          {/* Activity Logs Panel */}
           {(isAdmin || isManager) && (
             <div className="bg-white rounded-[28px] border border-slate-100 shadow-sm p-5 lg:col-span-1 h-fit max-h-[640px] flex flex-col">
               <div className="pb-3 border-b border-slate-50 mb-3 flex items-center justify-between">
@@ -524,12 +535,10 @@ export default function BulkStock({ onBack, refreshMetrics }) {
                   <p className="text-[11px] text-slate-400 italic py-4 text-center">No structural log history found.</p>
                 ) : (
                   auditLogs.map((log) => {
-                    // SECURE FALLBACK CONTEXT RECOVERY EXTRACTIONS
+                    // Safe Extraction Bindings
                     const displayName = log.performed_by_name || log.user_name || log.created_by_name || 'System User';
-                    
                     const rawQty = log.package_qty_changed ?? log.quantity ?? log.qty ?? 0;
                     const displayQty = Math.abs(Number(rawQty));
-
                     const rawTime = log.created_at || log.timestamp || log.date;
                     const formattedTime = rawTime ? new Date(rawTime).toLocaleString() : 'N/A';
 
@@ -546,7 +555,7 @@ export default function BulkStock({ onBack, refreshMetrics }) {
                           </span>
                         </div>
                         <p className="text-slate-500 mt-0.5 font-medium">
-                          Product: <span className="font-bold text-slate-700">{log.item_name}</span> 
+                          Item: <span className="font-bold text-slate-700">{log.item_name || 'Unknown Item'}</span> 
                           {rawQty !== 0 && ` (${rawQty > 0 ? '+' : '-'}${displayQty} Pkgs)`}
                         </p>
                         {log.old_value && (
@@ -567,7 +576,7 @@ export default function BulkStock({ onBack, refreshMetrics }) {
 
         </div>
 
-        {/* SECURE PASSWORD GATE MODAL */}
+        {/* Security Password Gate Modal */}
         {showPasswordGate && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]">
             <div className="bg-white w-full max-w-xs rounded-[32px] p-8 shadow-2xl text-center">
@@ -592,7 +601,7 @@ export default function BulkStock({ onBack, refreshMetrics }) {
           </div>
         )}
 
-        {/* OPERATIONAL INTERACTION DIALOGS */}
+        {/* Operational Modals */}
         {activeModal && (
           <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
             <div className="bg-white w-full max-w-sm rounded-[32px] p-8 shadow-xl">
