@@ -14,6 +14,27 @@ function AppContent() {
   const [forceAdminBypass, setForceAdminBypass] = useState(false);
   const [checkingLocalToken, setCheckingLocalToken] = useState(true);
 
+  // 📱 MOBILE REFRESH RESET TERMINAL
+  // Runs immediately on mount. If a mobile device reloads the app, clear sub-view history
+  useEffect(() => {
+    const isMobileViewport = window.innerWidth <= 768 || /Mobi|Android|iPhone/i.test(navigator.userAgent);
+    
+    if (isMobileViewport) {
+      console.log("Mobile context detected on mount. Wiping cached view sub-states...");
+      
+      // Expandable list of common local storage string states used to memorize tabs/views
+      const nestedNavigationKeys = [
+        'activeView', 'currentView', 'selectedView', 'viewState', 
+        'activeTab', 'currentTab', 'dashboard_tab', 'admin_view'
+      ];
+      
+      nestedNavigationKeys.forEach(key => {
+        localStorage.removeItem(key);
+        sessionStorage.removeItem(key);
+      });
+    }
+  }, []);
+
   // ⚡ INSTANT SUPABASE TOKEN BACKUP CHANNEL & STATE SAFETY RESET
   useEffect(() => {
     // If user is completely unauthenticated, reset the bypass immediately to avoid dashboard leakage

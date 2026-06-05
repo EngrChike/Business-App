@@ -5,7 +5,7 @@ import { supabase } from '../api/supabaseClient.js';
 const AuthContext = createContext(null);
 
 // ⏱️ CONFIGURATION: Set the maximum inactivity time limit here
-// 10 * 60 * 1000 = 10 Minutes (Change the 10 to any number of minutes you want)
+// 5 * 60 * 1000 = 5 Minutes
 const INACTIVITY_LIMIT = 5 * 60 * 1000; 
 
 export const AuthProvider = ({ children }) => {
@@ -16,6 +16,31 @@ export const AuthProvider = ({ children }) => {
 
   // Reference pointer to track the active background countdown timer
   const inactivityTimeoutRef = useRef(null);
+
+  /**
+   * Mobile Device Refresh Interceptor
+   * Runs exactly once when the application launches or reloads.
+   * If on a mobile device, it clears any active view states to return to the core dashboard.
+   */
+  useEffect(() => {
+    const isMobileDevice = window.innerWidth <= 768 || /Mobi|Android|iPhone/i.test(navigator.userAgent);
+    
+    if (isMobileDevice) {
+      console.log("Mobile device reload detected. Resetting navigation back to root dashboard view context.");
+      
+      // Clear common storage items used to track opened sub-views (like BulkStock view)
+      const viewTrackingKeys = ['activeView', 'currentView', 'selectedView', 'viewState', 'activeTab', 'currentTab'];
+      viewTrackingKeys.forEach(key => {
+        localStorage.removeItem(key);
+        sessionStorage.removeItem(key);
+      });
+
+      // If the app uses standard URL hash mapping, push back to primary root view safely
+      if (window.location.hash && window.location.hash !== '#/' && window.location.hash !== '#') {
+        window.location.hash = '#/';
+      }
+    }
+  }, []);
 
   /**
    * Fetches backend profile database keys with an instant high-priority administrative 
@@ -94,13 +119,14 @@ export const AuthProvider = ({ children }) => {
 
   // Listen for user interactions to reset the inactivity countdown clock
   useEffect(() => {
-    const interactionEvents = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
+    // Enhanced touch and movement handlers specifically for tracking active mobile inputs accurately
+    const interactionEvents = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart', 'touchmove', 'pointerdown'];
 
     if (user) {
       resetInactivityTimer();
       
       interactionEvents.forEach(eventType => {
-        window.addEventListener(eventType, resetInactivityTimer);
+        window.addEventListener(eventType, resetInactivityTimer, { passive: true });
       });
     }
 
@@ -213,11 +239,11 @@ export const AuthProvider = ({ children }) => {
     branchId: profile.branch_id,   
     branch_id: profile.branch_id,  
     isActive: profile.is_active, 
-    selectedBranch,               
+    selectedBranch,              
     setSelectedBranch,            
     authenticated: !!user,
     loading,                      
-    signOut                       
+    signOut   
   }), [user, profile, selectedBranch, loading]);
 
   return (
