@@ -18,7 +18,7 @@ export default function BulkStock({ onBack, refreshMetrics }) {
 
   // Form Fields (Incoming Shipments - Admin Only)
   const [name, setName] = useState('');
-  const [packageType, setPackageType] = useState('Bag'); // Defaulting to your real examples
+  const [packageType, setPackageType] = useState('Bag'); 
   const [packageQty, setPackageQty] = useState('');
   const [unitsPerPkg, setUnitsPerPkg] = useState('');
   const [costPricePerPkg, setCostPricePerPkg] = useState('');
@@ -39,7 +39,7 @@ export default function BulkStock({ onBack, refreshMetrics }) {
   const isAdmin = userRole === 'admin';
   const isManager = userRole === 'manager';
 
-  // Secure Override Key (Change this to your preferred administrative security password)
+  // Secure Override Key
   const MASTER_ADMIN_KEY = "1234";
 
   // --- Fetch System Context & Database Ledgers ---
@@ -116,11 +116,9 @@ export default function BulkStock({ onBack, refreshMetrics }) {
   };
 
   const requestAccess = (type, batch) => {
-    // Managers and Admins can access 'take' (Retrieve) with no password gate
     if (type === 'take') {
       triggerModal(type, batch);
     } else {
-      // 'refill', 'edit', and 'delete' are locked behind security verification
       setPendingAction({ type, batch });
       setShowPasswordGate(true);
     }
@@ -162,6 +160,7 @@ export default function BulkStock({ onBack, refreshMetrics }) {
           old_value: '0 Packages',
           new_value: `${packageQty} ${packageType}s`,
           performed_by_id: user?.id,
+          created_by: user?.id,
           performed_by_name: currentUserName
         }
       ]);
@@ -206,6 +205,7 @@ export default function BulkStock({ onBack, refreshMetrics }) {
           old_value: `${selectedBatch.package_quantity} Pkgs`,
           new_value: `${updatedTotalPackages} Pkgs`,
           performed_by_id: user?.id,
+          created_by: user?.id,
           performed_by_name: currentUserName
         }
       ]);
@@ -242,6 +242,7 @@ export default function BulkStock({ onBack, refreshMetrics }) {
           old_value: selectedBatch.name,
           new_value: modalNameInput.trim(),
           performed_by_id: user?.id,
+          created_by: user?.id,
           performed_by_name: currentUserName
         }
       ]);
@@ -277,6 +278,7 @@ export default function BulkStock({ onBack, refreshMetrics }) {
           old_value: `Existed with ${batch.package_quantity} Pkgs`,
           new_value: 'DELETED',
           performed_by_id: user?.id,
+          created_by: user?.id,
           performed_by_name: currentUserName
         }
       ]);
@@ -290,7 +292,7 @@ export default function BulkStock({ onBack, refreshMetrics }) {
     }
   };
 
-  // --- 5. RECORD ITEM PACKAGES TAKEN (Open to Admin & Manager - Logs Name + Date/Time) ---
+  // --- 5. RECORD ITEM PACKAGES TAKEN ---
   const handleTakePackages = async () => {
     if (!modalQuantityInput || parseInt(modalQuantityInput) <= 0) return alert('Enter a valid package amount extracted.');
     const countTaken = parseInt(modalQuantityInput);
@@ -310,7 +312,7 @@ export default function BulkStock({ onBack, refreshMetrics }) {
 
       if (error) throw error;
 
-      // Appends Audit Trail Entry with specific context tracking what user took it
+      // Appends Audit Trail Entry
       await supabase.from('bulk_inventory_logs').insert([
         {
           bulk_id: selectedBatch.id,
@@ -320,7 +322,8 @@ export default function BulkStock({ onBack, refreshMetrics }) {
           old_value: `${selectedBatch.package_quantity} Pkgs`,
           new_value: `${remainingQty} Pkgs`,
           performed_by_id: user?.id,
-          performed_by_name: currentUserName // Tracks the current active session name perfectly
+          created_by: user?.id, // Populates 'created_by' column
+          performed_by_name: currentUserName 
         }
       ]);
 
@@ -449,8 +452,6 @@ export default function BulkStock({ onBack, refreshMetrics }) {
                     <div className="flex-1">
                       <div className="flex items-center flex-wrap gap-2">
                         <h4 className="font-bold text-sm text-slate-800">{batch.name}</h4>
-                        
-                        {/* --- LOW STOCK ALERT INDICATOR --- */}
                         {batch.package_quantity <= 3 && (
                           <span className="inline-flex items-center px-2 py-0.5 rounded text-[8px] font-black bg-red-100 text-red-700 uppercase tracking-wider animate-pulse">
                             ⚠️ Low Stock Alert ({batch.package_quantity} Left)
@@ -474,7 +475,6 @@ export default function BulkStock({ onBack, refreshMetrics }) {
                       </p>
                     </div>
 
-                    {/* Operational Actions Routing */}
                     <div className="flex gap-1.5 self-end sm:self-center">
                       <button 
                         onClick={() => requestAccess('take', batch)}
@@ -512,7 +512,7 @@ export default function BulkStock({ onBack, refreshMetrics }) {
             </div>
           </div>
 
-          {/* REAL-TIME AUDIT TRACKING TIMELINE PANEL (Displays Date, Time, and Name) */}
+          {/* REAL-TIME AUDIT TRACKING TIMELINE PANEL */}
           {(isAdmin || isManager) && (
             <div className="bg-white rounded-[28px] border border-slate-100 shadow-sm p-5 lg:col-span-1 h-fit max-h-[640px] flex flex-col">
               <div className="pb-3 border-b border-slate-50 mb-3 flex items-center justify-between">
@@ -523,33 +523,43 @@ export default function BulkStock({ onBack, refreshMetrics }) {
                 {auditLogs.length === 0 ? (
                   <p className="text-[11px] text-slate-400 italic py-4 text-center">No structural log history found.</p>
                 ) : (
-                  auditLogs.map((log) => (
-                    <div key={log.id} className="py-2.5 text-[11px]">
-                      <div className="flex justify-between items-start font-bold gap-2">
-                        <span className="text-slate-700 truncate">{log.performed_by_name}</span>
-                        <span className={`text-[8px] px-1.5 py-0.5 rounded font-black flex-shrink-0 ${
-                          log.action_type === 'TAKEN' ? 'bg-amber-50 text-amber-700' :
-                          log.action_type === 'DELETE' ? 'bg-red-50 text-red-700' :
-                          log.action_type === 'REFILL' ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-700'
-                        }`}>
-                          {log.action_type}
-                        </span>
-                      </div>
-                      <p className="text-slate-500 mt-0.5 font-medium">
-                        Product: <span className="font-bold text-slate-700">{log.item_name}</span> 
-                        {log.package_qty_changed !== 0 && ` (${log.package_qty_changed > 0 ? '+' : ''}${log.package_qty_changed} Pkgs)`}
-                      </p>
-                      {log.old_value && (
-                        <p className="text-[9px] text-slate-400 font-mono mt-0.5">
-                          {log.old_value} &rarr; {log.new_value}
+                  auditLogs.map((log) => {
+                    // SECURE FALLBACK CONTEXT RECOVERY EXTRACTIONS
+                    const displayName = log.performed_by_name || log.user_name || log.created_by_name || 'System User';
+                    
+                    const rawQty = log.package_qty_changed ?? log.quantity ?? log.qty ?? 0;
+                    const displayQty = Math.abs(Number(rawQty));
+
+                    const rawTime = log.created_at || log.timestamp || log.date;
+                    const formattedTime = rawTime ? new Date(rawTime).toLocaleString() : 'N/A';
+
+                    return (
+                      <div key={log.id} className="py-2.5 text-[11px]">
+                        <div className="flex justify-between items-start font-bold gap-2">
+                          <span className="text-slate-700 truncate">{displayName}</span>
+                          <span className={`text-[8px] px-1.5 py-0.5 rounded font-black flex-shrink-0 ${
+                            log.action_type === 'TAKEN' ? 'bg-amber-50 text-amber-700' :
+                            log.action_type === 'DELETE' ? 'bg-red-50 text-red-700' :
+                            log.action_type === 'REFILL' ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-700'
+                          }`}>
+                            {log.action_type}
+                          </span>
+                        </div>
+                        <p className="text-slate-500 mt-0.5 font-medium">
+                          Product: <span className="font-bold text-slate-700">{log.item_name}</span> 
+                          {rawQty !== 0 && ` (${rawQty > 0 ? '+' : '-'}${displayQty} Pkgs)`}
                         </p>
-                      )}
-                      {/* Displays exact date and time */}
-                      <p className="text-[8px] text-slate-400 font-semibold mt-1">
-                        ⏱️ {new Date(log.created_at).toLocaleString()}
-                      </p>
-                    </div>
-                  ))
+                        {log.old_value && (
+                          <p className="text-[9px] text-slate-400 font-mono mt-0.5">
+                            {log.old_value} &rarr; {log.new_value}
+                          </p>
+                        )}
+                        <p className="text-[8px] text-slate-400 font-semibold mt-1">
+                          ⏱️ {formattedTime}
+                        </p>
+                      </div>
+                    );
+                  })
                 )}
               </div>
             </div>
