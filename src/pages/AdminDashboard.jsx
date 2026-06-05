@@ -32,7 +32,8 @@ export default function AdminDashboard() {
 
   const [stats, setStats] = useState({
     totalRevenue: 0,
-    bulkStockCount: 0, // Swapped variable
+    bulkStockCount: 0, 
+    lowBulkStockCount: 0, // NEW: TRACKS CRITICAL RAW KITCHEN INGREDIENTS
     lowStockCount: 0,
     totalExpenses: 0
   });
@@ -50,20 +51,25 @@ export default function AdminDashboard() {
       const expenseQuery = supabase.from('expenses').select('amount').gte('created_at', today.toISOString());
       const inventoryQuery = supabase.from('inventory').select('*', { count: 'exact', head: true }).lt('stock_quantity', 5);
       
-      // Query exact batch counts inside the new Bulk Stock ledger
+      // Query total bulk batch lines
       const bulkStockQuery = supabase.from('bulk_inventory').select('*', { count: 'exact', head: true });
+      
+      // NEW: Query bulk items where remaining packages are 3 or less
+      const lowBulkStockQuery = supabase.from('bulk_inventory').select('*', { count: 'exact', head: true }).lte('package_quantity', 3);
 
-      const [salesRes, expenseRes, inventoryRes, bulkStockRes] = await Promise.all([
+      const [salesRes, expenseRes, inventoryRes, bulkStockRes, lowBulkStockRes] = await Promise.all([
         salesQuery,
         expenseQuery,
         inventoryQuery,
-        bulkStockQuery
+        bulkStockQuery,
+        lowBulkStockQuery
       ]);
 
       const salesData = salesRes.data || [];
       const expenseData = expenseRes.data || [];
       const lowStock = inventoryRes.count || 0;
       const bulkCount = bulkStockRes.count || 0;
+      const lowBulkCount = lowBulkStockRes.count || 0;
 
       const revenue = salesData
         .filter(s => s.payment_status === 'paid')
@@ -74,6 +80,7 @@ export default function AdminDashboard() {
       setStats({
         totalRevenue: revenue,
         bulkStockCount: bulkCount,
+        lowBulkStockCount: lowBulkCount,
         lowStockCount: lowStock,
         totalExpenses: expenses
       });
@@ -227,7 +234,9 @@ export default function AdminDashboard() {
               <span className="text-2xl bg-slate-100 group-hover:scale-110 transition-transform p-3 rounded-2xl w-fit inline-block mb-4 shadow-sm">📦</span>
               <div>
                 <h3 className="text-lg font-extrabold tracking-tight">Global Inventory Master</h3>
-                <p className={`text-[11px] mt-0.5 font-medium uppercase tracking-wider ${stats.lowStockCount > 0 ? 'text-white/80' : 'text-slate-400'}`}>Monitor System Stock</p>
+                <p className={`text-[11px] mt-0.5 font-medium uppercase tracking-wider ${stats.lowStockCount > 0 ? 'text-white/80' : 'text-slate-400'}`}>
+                  {stats.lowStockCount > 0 ? `⚠️ ${stats.lowStockCount} Cooked Items Low` : 'Monitor System Stock'}
+                </p>
               </div>
             </div>
           </button>
@@ -245,16 +254,22 @@ export default function AdminDashboard() {
             </div>
           </button>
 
-          {/* TRANSFORMATION MODULE: Swapped Debtor Ledger with Bulk Stock Supply Framework */}
+          {/* DYNAMIC MODULE ALERT: Turns Amber/Orange automatically if kitchen raw ingredients drop to 3 packages or less */}
           <button 
             onClick={() => setView('bulkstock')} 
-            className="bg-white border border-slate-100 p-6 md:p-8 rounded-[28px] transition-all hover:scale-[1.01] active:scale-98 text-left group shadow-sm"
+            className={`p-6 md:p-8 rounded-[28px] transition-all hover:scale-[1.01] active:scale-98 text-left group shadow-sm border ${
+              stats.lowBulkStockCount > 0 
+                ? 'bg-gradient-to-br from-amber-500 to-orange-600 text-white border-transparent' 
+                : 'bg-white text-[#111111] border-slate-100'
+            }`}
           >
             <div className="flex flex-col h-full justify-between">
               <span className="text-2xl bg-amber-50 p-3 rounded-2xl w-fit inline-block mb-4 shadow-sm">🏭</span>
               <div>
-                <h3 className="text-lg font-extrabold tracking-tight text-slate-900">Bulk Stock Inventory</h3>
-                <p className="text-slate-400 text-[11px] mt-0.5 font-medium uppercase tracking-wider">Manage Wholesale Packages</p>
+                <h3 className="text-lg font-extrabold tracking-tight">Bulk Stock Inventory</h3>
+                <p className={`text-[11px] mt-0.5 font-medium uppercase tracking-wider ${stats.lowBulkStockCount > 0 ? 'text-white/90 animate-pulse font-bold' : 'text-slate-400'}`}>
+                  {stats.lowBulkStockCount > 0 ? `⚠️ ${stats.lowBulkStockCount} Raw Ingredients Critical` : 'Manage Wholesale Packages'}
+                </p>
               </div>
             </div>
           </button>

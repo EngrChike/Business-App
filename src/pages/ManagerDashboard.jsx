@@ -21,6 +21,7 @@ export default function ManagerDashboard() {
     revenue: 0,
     expenses: 0,
     lowStockCount: 0,
+    lowBulkStockCount: 0, // TRACKS THE NEW BULK ALERT LEVEL
     salesCount: 0
   });
 
@@ -34,7 +35,8 @@ export default function ManagerDashboard() {
       shiftTime.setHours(6, 0, 0, 0);
       const isoShiftStr = shiftTime.toISOString();
 
-      const [salesRes, expensesRes, inventoryRes] = await Promise.all([
+      // Updated to fetch bulk stock exceptions concurrently
+      const [salesRes, expensesRes, inventoryRes, bulkInventoryRes] = await Promise.all([
         supabase
           .from('sales')
           .select('total_amount')
@@ -49,17 +51,24 @@ export default function ManagerDashboard() {
           .from('inventory')
           .select('stock_quantity')
           .eq('branch_id', targetBranchId)
-          .lt('stock_quantity', 5)
+          .lt('stock_quantity', 5),
+        supabase
+          .from('bulk_inventory')
+          .select('package_quantity')
+          .eq('branch_id', targetBranchId)
+          .lte('package_quantity', 3) // Captures items with 3, 2, 1, or 0 packages remaining
       ]);
 
       const dailyRevenue = (salesRes.data || []).reduce((sum, s) => sum + (s.total_amount || 0), 0);
       const dailyExpenses = (expensesRes.data || []).reduce((sum, e) => sum + (e.amount || 0), 0);
       const lowStockItemsCount = (inventoryRes.data || []).length;
+      const lowBulkStockCount = (bulkInventoryRes.data || []).length;
 
       setMetrics({
         revenue: dailyRevenue,
         expenses: dailyExpenses,
         lowStockCount: lowStockItemsCount,
+        lowBulkStockCount: lowBulkStockCount,
         salesCount: (salesRes.data || []).length
       });
     } catch (err) {
@@ -173,11 +182,19 @@ export default function ManagerDashboard() {
           </div>
         </div>
 
-        {/* CRITICAL STOCK NOTIFICATION */}
+        {/* CRITICAL RETAIL STOCK NOTIFICATION */}
         {metrics.lowStockCount > 0 && (
-          <div onClick={() => setCurrentView('inventory')} className="bg-orange-500 hover:bg-orange-600 cursor-pointer p-4 rounded-2xl text-white font-bold text-xs uppercase tracking-wider flex justify-between items-center mb-6 shadow-md transition-all">
+          <div onClick={() => setCurrentView('inventory')} className="bg-orange-500 hover:bg-orange-600 cursor-pointer p-4 rounded-2xl text-white font-bold text-xs uppercase tracking-wider flex justify-between items-center mb-3 shadow-md transition-all">
             <span>⚠️ Storage Warning: {metrics.lowStockCount} item variants are critically low!</span>
             <span className="bg-white text-orange-600 px-2.5 py-1 rounded-lg text-[10px] font-black">Refill Logistics →</span>
+          </div>
+        )}
+
+        {/* --- NEW: CRITICAL BULK VAULT STOCK NOTIFICATION --- */}
+        {metrics.lowBulkStockCount > 0 && (
+          <div onClick={() => setCurrentView('bulk_stock')} className="bg-red-500 hover:bg-red-600 cursor-pointer p-4 rounded-2xl text-white font-bold text-xs uppercase tracking-wider flex justify-between items-center mb-6 shadow-md transition-all animate-pulse">
+            <span>⚠️ Bulk Storage Alert: {metrics.lowBulkStockCount} supply lines have 3 or less packages left!</span>
+            <span className="bg-white text-red-600 px-2.5 py-1 rounded-lg text-[10px] font-black">Refill Vault →</span>
           </div>
         )}
 
