@@ -3,41 +3,54 @@ import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext.jsx'; 
 import Login from './views/shared/Login.jsx'; 
 import AdminDashboard from './pages/AdminDashboard.jsx'; 
-import ManagerDashboard from './pages/ManagerDashboard.jsx'; // ✅ FIXED: Removed curly braces to match default export style
+import ManagerDashboard from './pages/ManagerDashboard.jsx'; 
 import StaffDashboard from './pages/StaffDashboard.jsx'; 
 import OfflineSyncManager from './components/OfflineSyncManager.jsx';
 import { supabase } from './api/supabaseClient.js'; 
 import './index.css';
 
 function AppContent() {
-  const { authenticated, role, selectedBranch, isActive, loading } = useAuth();
+  const { authenticated, role, selectedBranch, isActive, loading: authLoading } = useAuth();
   const [forceAdminBypass, setForceAdminBypass] = useState(false);
   const [checkingLocalToken, setCheckingLocalToken] = useState(true);
+  const [fallbackTriggered, setFallbackTriggered] = useState(false);
 
-  // 📱 MOBILE REFRESH RESET TERMINAL
-  // Runs immediately on mount. If a mobile device reloads the app, clear sub-view history
+  // 💾 BACKUP SESSION CACHE TO PREVENT REFRESH FREEZES
   useEffect(() => {
-    const isMobileViewport = window.innerWidth <= 768 || /Mobi|Android|iPhone/i.test(navigator.userAgent);
-    
-    if (isMobileViewport) {
-      console.log("Mobile context detected on mount. Wiping cached view sub-states...");
-      
-      // Expandable list of common local storage string states used to memorize tabs/views
-      const nestedNavigationKeys = [
-        'activeView', 'currentView', 'selectedView', 'viewState', 
-        'activeTab', 'currentTab', 'dashboard_tab', 'admin_view'
-      ];
-      
-      nestedNavigationKeys.forEach(key => {
-        localStorage.removeItem(key);
-        sessionStorage.removeItem(key);
-      });
+    if (role) {
+      localStorage.setItem('monbilan_terminal_role_cache', String(role).toLowerCase().trim());
     }
+  }, [role]);
+
+  // ⏱️ ANTI-FREEZE FAIL-SAFE ROUTING TIMER (1.5 Second Threshold)
+  useEffect(() => {
+    let emergencyTimer;
+    if (authLoading || checkingLocalToken) {
+      emergencyTimer = setTimeout(() => {
+        console.warn("Terminal initialization exceeded threshold. Disengaging lock screen.");
+        setFallbackTriggered(true);
+        setCheckingLocalToken(false);
+      }, 1500);
+    }
+    return () => clearTimeout(emergencyTimer);
+  }, [authLoading, checkingLocalToken]);
+
+  // 📱 REFRESH SUB-STATE PURGE
+  // Automatically strips out nested view states on reload to force a direct, clean boot into the main dashboard
+  useEffect(() => {
+    const nestedNavigationKeys = [
+      'activeView', 'currentView', 'selectedView', 'viewState', 
+      'activeTab', 'currentTab', 'dashboard_tab', 'admin_view'
+    ];
+    
+    nestedNavigationKeys.forEach(key => {
+      localStorage.removeItem(key);
+      sessionStorage.removeItem(key);
+    });
   }, []);
 
-  // ⚡ INSTANT SUPABASE TOKEN BACKUP CHANNEL & STATE SAFETY RESET
+  // ⚡ INSTANT SUPABASE VALIDATION LAYER
   useEffect(() => {
-    // If user is completely unauthenticated, reset the bypass immediately to avoid dashboard leakage
     if (!authenticated) {
       setForceAdminBypass(false);
       setCheckingLocalToken(false);
@@ -52,11 +65,10 @@ function AppContent() {
         if (email === 'donchike21@gmail.com' || email.includes('admin')) {
           setForceAdminBypass(true);
         } else {
-          // 🛡️ CRITICAL SECURITY FIX: Explicitly turn off the bypass if the session isn't administrative
           setForceAdminBypass(false);
         }
       } catch (err) {
-        console.error("Local storage sync error:", err);
+        console.error("Local storage verification error:", err);
         setForceAdminBypass(false);
       } finally {
         setCheckingLocalToken(false);
@@ -65,10 +77,15 @@ function AppContent() {
     verifyLocalSession();
   }, [authenticated]);
 
-  const cleanRole = role ? String(role).toLowerCase().trim() : '';
+  // Determine structural identity using live context strings or cached fallbacks
+  const storedRoleFallback = localStorage.getItem('monbilan_terminal_role_cache') || '';
+  const cleanRole = role ? String(role).toLowerCase().trim() : storedRoleFallback;
+
+  // Evaluate structural lock status
+  const displayingSecurityLayer = (authLoading || checkingLocalToken) && !fallbackTriggered && !cleanRole;
 
   // 1. ASYNCHRONOUS INITIALIZATION & STRUCTURAL RESOLUTION LOCK
-  if (loading || checkingLocalToken || (authenticated && !cleanRole)) {
+  if (displayingSecurityLayer) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F4F3ED]">
         <div className="text-center">
@@ -98,7 +115,8 @@ function AppContent() {
 
   // 5. STANDARD STAFF ROUTING CONTROLS
   if (cleanRole === 'staff') {
-    if (!selectedBranch) {
+    // 🛡️ REFRESH FIX: Only display restriction screen if loading sequence is entirely finalized
+    if (!selectedBranch && !authLoading && !fallbackTriggered) {
       return (
         <div className="min-h-screen flex items-center justify-center bg-[#F4F3ED] p-4">
           <div className="bg-white p-6 md:p-8 rounded-[40px] shadow-sm max-w-sm text-center border border-slate-100">
@@ -118,6 +136,7 @@ function AppContent() {
               <button 
                 onClick={async () => {
                   await supabase.auth.signOut();
+                  localStorage.removeItem('monbilan_terminal_role_cache');
                   window.location.reload();
                 }} 
                 className="w-1/2 bg-red-500 text-white py-3 rounded-2xl font-black text-[10px] uppercase tracking-wider hover:opacity-90 transition-all"
@@ -146,6 +165,7 @@ function AppContent() {
           <button
             onClick={async () => {
               await supabase.auth.signOut();
+              localStorage.removeItem('monbilan_terminal_role_cache');
               window.location.reload();
             }}
             className="w-full bg-slate-900 text-white py-3 rounded-xl text-[10px] font-black uppercase tracking-widest"
