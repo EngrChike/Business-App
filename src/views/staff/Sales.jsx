@@ -68,6 +68,7 @@ export default function Sales({ onBack, branchId: dashboardBranchId, refreshMetr
           total_amount, 
           quantity, 
           created_at,
+          staff_name,
           inventory ( name )
         `)
         .eq('branch_id', activeBranchId)
@@ -225,6 +226,8 @@ export default function Sales({ onBack, branchId: dashboardBranchId, refreshMetr
   const executeLocalStateDeduction = useCallback(() => {
     if (!userBranch?.id || !confirmation) return;
     
+    const activeStaffName = user?.user_metadata?.full_name || user?.full_name || user?.email || 'System Terminal';
+
     setInventory(prev => {
       const parsedUpdatedInv = prev.map(item => {
         if (item.id === confirmation.product_id) {
@@ -243,12 +246,13 @@ export default function Sales({ onBack, branchId: dashboardBranchId, refreshMetr
       total_amount: confirmation.total,
       quantity: confirmation.quantity,
       created_at: new Date().toISOString(),
+      staff_name: activeStaffName.trim(),
       inventory: { name: `${confirmation.name} (En attente de sync ⏳)` }
     };
     
     setDailySales(prev => [localVisualLogItem, ...prev]);
     clearFormFields();
-  }, [confirmation, userBranch?.id]);
+  }, [confirmation, userBranch?.id, user]);
 
   const finalize = async () => {
     if (!confirmation || !user || !userBranch?.id || loading) return;
@@ -503,8 +507,13 @@ export default function Sales({ onBack, branchId: dashboardBranchId, refreshMetr
                 <div key={sale.id} className="flex justify-between items-center py-4 first:pt-0 last:pb-0 group transition-all">
                   <div>
                     <p className="font-extrabold text-sm text-neutral-800 group-hover:text-neutral-900 transition-colors">{sale.inventory?.name || "Product Item"}</p>
-                    <p className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider mt-1">
-                      {`${t('quantity_size') || 'Qty'}: ${sale.quantity}`}
+                    <p className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider mt-1 flex items-center gap-1.5 flex-wrap">
+                      <span>{`${t('quantity_size') || 'Qty'}: ${sale.quantity}`}</span>
+                      {sale.staff_name && (
+                        <span className="text-[9px] bg-neutral-100 text-neutral-600 px-2 py-0.5 rounded-md font-semibold normal-case tracking-normal border border-neutral-200/40">
+                          by {sale.staff_name}
+                        </span>
+                      )}
                     </p>
                   </div>
                   <p className="font-black text-neutral-900 text-sm tracking-wide">
