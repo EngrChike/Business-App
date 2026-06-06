@@ -13,7 +13,7 @@ serve(async (req) => {
         'Authorization': `Bearer ${RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: 'Don Chike Elite <alerts@resend.dev>', // Use resend.dev for testing
+        from: 'AMALUCHA GLOBAL <alerts@resend.dev>', // Use resend.dev for testing
         to: ['your-email@gmail.com'], // YOUR EMAIL HERE
         subject: `🚨 RESTOCK ALERT: ${item_name}`,
         html: `<h3>CEO Alert</h3><p><strong>${item_name}</strong> is running low! Current stock: <strong>${current_stock}</strong>.</p>`,
