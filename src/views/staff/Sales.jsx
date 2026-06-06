@@ -330,9 +330,9 @@ export default function Sales({ onBack, branchId: dashboardBranchId, refreshMetr
 
   if (checkingBranch) {
     return (
-      <div className="min-h-screen bg-[#F4F3ED] flex items-center justify-center font-sans">
-        <div className="text-center font-bold text-slate-500 animate-pulse text-xs uppercase tracking-widest">
-          Securing Branch Sandbox Terminal Context...
+      <div className="min-h-screen bg-[#FDFDFB] flex items-center justify-center font-sans">
+        <div className="text-center font-bold text-neutral-400 animate-pulse text-xs uppercase tracking-[0.25em]">
+          Securing Premium Terminal Context...
         </div>
       </div>
     );
@@ -340,14 +340,14 @@ export default function Sales({ onBack, branchId: dashboardBranchId, refreshMetr
 
   if (!userBranch) {
     return (
-      <div className="min-h-screen bg-[#F4F3ED] flex items-center justify-center p-4 font-sans">
-        <div className="bg-white p-8 max-w-sm rounded-[35px] shadow-sm border border-slate-200 text-center">
-          <span className="text-4xl block mb-4">🛑</span>
-          <h2 className="text-base font-black text-slate-900 uppercase tracking-tight mb-2">Terminal Access Locked</h2>
-          <p className="text-xs font-medium text-slate-400 leading-relaxed mb-6">
-            Your account hasn't been mapped to an active operating location branch yet. Please contact your manager to assign your terminal station.
+      <div className="min-h-screen bg-[#FDFDFB] flex items-center justify-center p-4 font-sans">
+        <div className="bg-white p-10 max-w-sm rounded-[40px] shadow-xl border border-neutral-100 text-center">
+          <span className="text-4xl block mb-4">🔒</span>
+          <h2 className="text-sm font-black text-neutral-900 uppercase tracking-[0.15em] mb-3">Terminal Access Locked</h2>
+          <p className="text-xs font-medium text-neutral-400 leading-relaxed mb-8 px-2">
+            Your profile has not been assigned to an active operating location. Please contact administration.
           </p>
-          <button onClick={() => supabase.auth.signOut()} className="w-full py-3.5 bg-red-500 text-white font-black rounded-2xl text-xs uppercase tracking-wider shadow-sm active:scale-95 transition-all">
+          <button onClick={() => supabase.auth.signOut()} className="w-full py-4 bg-red-950 text-white font-bold rounded-2xl text-[11px] uppercase tracking-widest shadow-lg hover:bg-red-900 active:scale-95 transition-all">
             Log Out Securely
           </button>
         </div>
@@ -356,65 +356,71 @@ export default function Sales({ onBack, branchId: dashboardBranchId, refreshMetr
   }
 
   return (
-    <div className="min-h-screen bg-[#F4F3ED] text-[#111111] p-4 md:p-8 font-sans antialiased pb-24">
+    <div className="min-h-screen bg-[#F4F3ED] text-[#1A1A1A] p-4 md:p-8 font-sans antialiased pb-24 selection:bg-neutral-900 selection:text-white">
       <div className="max-w-xl mx-auto">
         
-        {/* HEADER */}
-        <div className="flex justify-between items-center mb-6 mt-2 relative">
+        {/* HEADER SECTION */}
+        <div className="flex justify-between items-center mb-8 mt-4 relative">
           <div className="flex-1 mr-2">
-            <button onClick={onBack} className="text-[#3F51B5] font-bold text-xs tracking-wider uppercase mb-1 block hover:opacity-80 transition-opacity">
-              {t('back')}
+            <button onClick={onBack} className="text-neutral-500 font-extrabold text-[10px] tracking-[0.2em] uppercase mb-2 flex items-center gap-1 hover:text-neutral-900 transition-colors">
+              <span>←</span> {t('back')}
             </button>
-            <h1 className="text-xl font-black tracking-tight text-slate-900 flex items-center gap-2">
+            <h1 className="text-2xl font-black tracking-tight text-neutral-900 uppercase">
               {t('sales_entry') || 'Sales Entry'}
             </h1>
             
-            <div className="flex flex-wrap gap-1.5 items-center mt-2 w-full">
+            <div className="flex flex-wrap gap-2 items-center mt-3 w-full">
               {userRole === 'admin' ? (
-                <select
-                  value={userBranch.id}
-                  onChange={(e) => handleAdminBranchSwitch(e.target.value)}
-                  className="bg-slate-900 text-emerald-400 text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl outline-none border border-slate-800 cursor-pointer shadow-md focus:border-emerald-500 max-w-[220px] truncate"
-                >
-                  {branches.map(b => (
-                    <option key={b.id} value={b.id} className="bg-white text-slate-900 font-bold">
-                      {`👑 Switch: ${b.name}`}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative inline-block">
+                  <select
+                    value={userBranch.id}
+                    onChange={(e) => handleAdminBranchSwitch(e.target.value)}
+                    className="appearance-none bg-neutral-950 text-[#D4AF37] text-[10px] font-black uppercase tracking-[0.15em] pl-4 pr-10 py-2.5 rounded-xl outline-none border border-neutral-800 cursor-pointer shadow-xl focus:border-[#D4AF37] max-w-[240px] truncate transition-all"
+                  >
+                    {branches.map(b => (
+                      <option key={b.id} value={b.id} className="bg-white text-neutral-900 font-bold">
+                        {`👑 Switch: ${b.name}`}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-[#D4AF37]">
+                    <span className="text-[8px]">▼</span>
+                  </div>
+                </div>
               ) : (
-                <span className="text-[10px] font-black uppercase text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-md tracking-wider inline-block">
-                  {`📍 Station: ${userBranch.name}`}
+                <span className="text-[10px] font-black uppercase text-neutral-800 bg-white border border-neutral-200/60 px-3 py-2 rounded-xl tracking-widest shadow-sm">
+                  📍 {userBranch.name}
                 </span>
               )}
               
               {userRole === 'manager' && (
-                <span className="text-[10px] font-black uppercase text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-md tracking-wider inline-block">
-                  💼 Manager View
+                <span className="text-[10px] font-black uppercase text-neutral-900 bg-amber-100/70 border border-amber-200 px-3 py-1.5 rounded-xl tracking-widest shadow-sm">
+                  👑 Manager View
                 </span>
               )}
             </div>
           </div>
 
+          {/* USER PROFILE AVATAR */}
           <div className="relative" ref={dropdownRef}>
             <button 
               onClick={() => setIsProfileOpen(!isProfileOpen)}
-              className="flex items-center justify-center h-10 w-10 rounded-full bg-[#1C1B1F] text-white font-black text-sm uppercase shadow-md active:scale-95 transition-all"
+              className="flex items-center justify-center h-12 w-12 rounded-full bg-neutral-950 text-[#D4AF37] font-black text-sm uppercase shadow-xl border border-neutral-800 active:scale-95 transition-all"
             >
               {staffDisplayName.charAt(0)}
             </button>
 
             {isProfileOpen && (
-              <div className="absolute right-0 top-12 w-60 bg-white border border-slate-100 rounded-[22px] shadow-xl p-4 z-50">
-                <div className="pb-2 border-b border-slate-100">
-                  <p className="text-xs font-black text-slate-800 truncate">{staffDisplayName}</p>
-                  <p className="text-[10px] font-medium text-slate-400 truncate mt-0.5">{user?.email}</p>
-                  <p className="text-[9px] font-black text-indigo-600 uppercase mt-1">{`Role: ${userRole}`}</p>
+              <div className="absolute right-0 top-14 w-64 bg-white border border-neutral-100 rounded-[24px] shadow-2xl p-5 z-50 animate-in fade-in slide-in-from-top-3 duration-200">
+                <div className="pb-3 border-b border-neutral-100">
+                  <p className="text-xs font-black text-neutral-900 truncate tracking-wide">{staffDisplayName}</p>
+                  <p className="text-[10px] font-medium text-neutral-400 truncate mt-0.5">{user?.email}</p>
+                  <p className="text-[9px] font-black text-amber-600 uppercase tracking-widest mt-2 bg-amber-50 px-2 py-0.5 rounded inline-block">{`Role: ${userRole}`}</p>
                 </div>
-                <div className="pt-2">
+                <div className="pt-3">
                   <button 
                     onClick={() => supabase.auth.signOut()} 
-                    className="w-full text-left px-2 py-1.5 text-xs font-bold text-[#FF5A50] hover:bg-red-50 rounded-xl transition-colors flex items-center gap-2"
+                    className="w-full text-left px-2 py-2 text-xs font-bold text-red-600 hover:bg-red-50 rounded-xl transition-all flex items-center gap-2"
                   >
                     <span>🚪</span> {t('sign_out')}
                   </button>
@@ -424,95 +430,123 @@ export default function Sales({ onBack, branchId: dashboardBranchId, refreshMetr
           </div>
         </div>
         
-        {/* INPUT FORM */}
-        <div className="bg-white p-6 md:p-8 rounded-[28px] shadow-sm border border-slate-100 mb-6">
-          <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2 tracking-wider">
-            {t('choose_item') || 'Choose Item'}
+        {/* INPUT BOUTIQUE FORM CARD */}
+        <div className="bg-white p-6 md:p-10 rounded-[32px] shadow-xl border border-neutral-100/60 mb-8 relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-neutral-800 via-neutral-950 to-neutral-800"></div>
+          
+          <label className="block text-[10px] font-black text-neutral-400 uppercase mb-3 tracking-[0.2em]">
+            {t('choose_item') || 'Choose Premium Item'}
           </label>
-          <select 
-            className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl mb-4 font-bold outline-none text-slate-800 text-sm focus:border-slate-200 transition-all" 
-            value={selectedProduct} 
-            onChange={(e) => setSelectedProduct(e.target.value)}
-          >
-            <option value="">{`-- ${t('select_item_option') || 'Select Item'} --`}</option>
-            {inventory.map(item => (
-              <option key={item.id} value={item.id}>
-                {`${item.name} (${item.stock_quantity} left) — ${item.selling_price?.toLocaleString()} FCFA`}
-              </option>
-            ))}
-          </select>
-
-          <div className="flex gap-3 mb-5">
-            <div className="w-full">
-              <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2 tracking-wider text-center">
-                {t('qty_label') || 'Qty'}
-              </label>
-              <input type="number" min="1" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl font-black text-center text-slate-800 text-sm" value={quantity} onChange={e => setQuantity(e.target.value)} />
+          <div className="relative mb-5">
+            <select 
+              className="w-full p-4.5 bg-neutral-50/80 border border-neutral-200/80 rounded-2xl font-bold outline-none text-neutral-800 text-sm focus:bg-white focus:border-neutral-950 transition-all appearance-none cursor-pointer" 
+              value={selectedProduct} 
+              onChange={(e) => setSelectedProduct(e.target.value)}
+            >
+              <option value="" className="text-neutral-400">{`-- ${t('select_item_option') || 'Select Item'} --`}</option>
+              {inventory.map(item => (
+                <option key={item.id} value={item.id} className="text-neutral-900 font-medium">
+                  {`${item.name} (${item.stock_quantity} left) — ${item.selling_price?.toLocaleString()} FCFA`}
+                </option>
+              ))}
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-neutral-500">
+              <span className="text-[10px]">▼</span>
             </div>
           </div>
 
-          <button onClick={handleProcess} className="w-full py-4.5 bg-[#1C1B1F] text-white rounded-2xl font-bold uppercase text-xs tracking-widest shadow-sm active:scale-[0.99] hover:opacity-90 transition-all mt-2">
+          <div className="mb-6">
+            <label className="block text-[10px] font-black text-neutral-400 uppercase mb-3 tracking-[0.2em] text-center">
+              {t('qty_label') || 'Quantity Selection'}
+            </label>
+            <div className="flex justify-center max-w-[180px] mx-auto relative">
+              <input 
+                type="number" 
+                min="1" 
+                className="w-full py-4 px-6 bg-neutral-50/80 border border-neutral-200/80 rounded-2xl font-black text-center text-neutral-900 text-base outline-none focus:bg-white focus:border-neutral-950 transition-all shadow-inner" 
+                value={quantity} 
+                onChange={e => setQuantity(e.target.value)} 
+              />
+            </div>
+          </div>
+
+          {/* UNIQUE LUXURY SUBMIT BUTTON */}
+          <button 
+            onClick={handleProcess} 
+            className="w-full py-5 bg-gradient-to-b from-neutral-900 to-neutral-950 text-white rounded-2xl font-black uppercase text-xs tracking-[0.25em] shadow-xl hover:from-neutral-800 hover:to-neutral-900 active:scale-[0.98] transition-all duration-150 border border-neutral-800 relative group overflow-hidden"
+          >
+            <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-shimmer" style={{ animationDuration: '2s' }}></span>
             {t('confirm_order_btn') || 'Confirm Order'}
           </button>
         </div>
 
-        {/* PERFORMANCE SUMMARY */}
-        <div className="bg-white rounded-[28px] border border-slate-100 shadow-sm overflow-hidden">
-          <div className="p-5 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
-            <h2 className="font-extrabold text-xs text-slate-400 uppercase tracking-wider truncate mr-2">
+        {/* PERFORMANCE SUMMARY CARD */}
+        <div className="bg-white rounded-[32px] border border-neutral-100 shadow-xl overflow-hidden">
+          <div className="p-6 border-b border-neutral-100 flex justify-between items-center bg-neutral-50/60">
+            <h2 className="font-black text-[10px] text-neutral-400 uppercase tracking-[0.2em] truncate mr-2">
               {userRole === 'manager' || userRole === 'admin' 
                 ? `${t('branch_sales_today') || 'Total Branch Sales Today'} [${userBranch.name.toUpperCase()}]`
                 : (t('sales_shift_today') || 'Your Sales Shift Today')}
             </h2>
-            <div className="bg-[#3F51B5] text-white px-3 py-0.5 rounded-full text-[10px] font-extrabold flex-shrink-0">{dailySales.length}</div>
+            <div className="bg-neutral-950 text-[#D4AF37] px-3 py-1 rounded-full text-[10px] font-black border border-neutral-800 shadow-sm flex-shrink-0">
+              {dailySales.length}
+            </div>
           </div>
 
-          <div className="p-5 divide-y divide-slate-100 max-h-60 overflow-y-auto pr-2">
+          <div className="p-6 divide-y divide-neutral-100 max-h-64 overflow-y-auto pr-3 scrollbar-thin">
             {dailySales.length === 0 ? (
-              <p className="text-slate-400 text-xs italic py-4 text-center">
+              <p className="text-neutral-400 text-xs italic py-8 text-center tracking-wide">
                 {t('no_transactions_shift') || 'No transactions completed yet this shift.'}
               </p>
             ) : (
               dailySales.map((sale) => (
-                <div key={sale.id} className="flex justify-between items-center py-3.5 first:pt-0 last:pb-0">
+                <div key={sale.id} className="flex justify-between items-center py-4 first:pt-0 last:pb-0 group transition-all">
                   <div>
-                    <p className="font-bold text-sm text-slate-800">{sale.inventory?.name || "Product Item"}</p>
-                    <p className="text-[10px] text-slate-400 font-medium mt-0.5">
-                      {`${t('quantity_size') || 'Quantity Size'}: ${sale.quantity}`}
+                    <p className="font-extrabold text-sm text-neutral-800 group-hover:text-neutral-900 transition-colors">{sale.inventory?.name || "Product Item"}</p>
+                    <p className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider mt-1">
+                      {`${t('quantity_size') || 'Qty'}: ${sale.quantity}`}
                     </p>
                   </div>
-                  <p className="font-extrabold text-slate-900 text-sm">
-                    {`+${sale.total_amount?.toLocaleString()}`} <span className="text-[10px] text-slate-400 font-bold">FCFA</span>
+                  <p className="font-black text-neutral-900 text-sm tracking-wide">
+                    {`+${sale.total_amount?.toLocaleString()}`} <span className="text-[10px] text-neutral-400 font-extrabold">FCFA</span>
                   </p>
                 </div>
               ))
             )}
           </div>
 
-          <div className="p-5 bg-slate-50/50 border-t border-slate-100 flex justify-between items-center">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+          <div className="p-6 bg-neutral-950 border-t border-neutral-800 flex justify-between items-center shadow-2xl">
+            <span className="text-[10px] font-black text-neutral-400 uppercase tracking-[0.2em]">
               {userRole === 'manager' || userRole === 'admin' ? (t('total_branch_revenue') || 'Total Branch Revenue') : (t('shift_revenue') || 'Shift Revenue')}
             </span>
-            <span className="text-xl font-black text-[#3F51B5] tracking-tight">{totalDayRevenue.toLocaleString()} <span className="text-[10px] font-bold text-slate-400">FCFA</span></span>
+            <span className="text-xl font-black text-[#D4AF37] tracking-wider">
+              {totalDayRevenue.toLocaleString()} <span className="text-xs font-bold text-neutral-400">FCFA</span>
+            </span>
           </div>
         </div>
 
-        {/* MODAL */}
+        {/* PREMIUM MODAL DIALOGUE */}
         {confirmation && (
-          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-            <div className="bg-white w-full max-w-sm rounded-[28px] p-8 text-center shadow-2xl animate-in zoom-in-95 duration-150">
-              <p className="text-3xl font-black text-slate-900 tracking-tight">{`${confirmation.total.toLocaleString()} FCFA`}</p>
-              <p className="text-[#3F51B5] font-bold mt-1 mb-8 uppercase text-[10px] tracking-wider">{confirmation.name}</p>
-              <div className="flex flex-col gap-2">
+          <div className="fixed inset-0 bg-neutral-950/60 backdrop-blur-md flex items-center justify-center p-4 z-50 transition-all duration-300">
+            <div className="bg-white w-full max-w-sm rounded-[36px] p-8 text-center shadow-2xl border border-neutral-100 animate-in zoom-in-95 duration-150 relative overflow-hidden">
+              <div className="w-12 h-[3px] bg-neutral-300 mx-auto mb-6 rounded-full"></div>
+              <p className="text-3xl font-black text-neutral-900 tracking-tight">{`${confirmation.total.toLocaleString()} FCFA`}</p>
+              <p className="text-amber-600 font-black mt-2 mb-8 uppercase text-[10px] tracking-[0.15em] bg-amber-50 px-3 py-1 rounded-full inline-block">{confirmation.name}</p>
+              
+              <div className="flex flex-col gap-2.5">
                 <button 
                   type="button"
                   onClick={finalize} 
                   disabled={loading}
-                  className="w-full py-4 bg-[#3F51B5] text-white rounded-xl font-bold uppercase text-xs tracking-wider disabled:opacity-50 active:scale-98 transition-all shadow-sm"
+                  className="w-full py-4.5 bg-neutral-950 text-white rounded-2xl font-black uppercase text-xs tracking-widest disabled:opacity-50 active:scale-98 transition-all shadow-xl border border-neutral-900"
                 >
                   {loading ? (t('processing_ledger') || 'Processing Ledger...') : (t('approve_sale_btn') || 'Approve Sale')}
                 </button>
-                <button type="button" onClick={() => setConfirmation(null)} className="w-full py-3.5 bg-slate-50 text-slate-400 rounded-xl font-bold uppercase text-xs tracking-wider hover:bg-slate-100 transition-colors">
+                <button 
+                  type="button" 
+                  onClick={() => setConfirmation(null)} 
+                  className="w-full py-4 bg-neutral-50 text-neutral-400 rounded-2xl font-extrabold uppercase text-xs tracking-widest hover:bg-neutral-100 hover:text-neutral-600 transition-all"
+                >
                   {t('cancel')}
                 </button>
               </div>
