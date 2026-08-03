@@ -1,4 +1,3 @@
-// src/views/admin/StaffManagement.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   ArrowLeft, 
@@ -99,7 +98,7 @@ export default function StaffManagement({ onBack, refreshMetrics }) {
 
       } catch (err) {
         if (isMounted) setMessage("System Registry Init Error: " + err.message);
-      } finally {
+      } font-bold {
         if (isMounted) setLoadingLayout(false);
       }
     };
@@ -137,7 +136,8 @@ export default function StaffManagement({ onBack, refreshMetrics }) {
           data: {
             full_name: fullName.trim(),
             name: fullName.trim(),
-            role: selectedRole
+            role: selectedRole,
+            is_active: true
           }
         }
       });
@@ -239,7 +239,12 @@ export default function StaffManagement({ onBack, refreshMetrics }) {
   // --- ACTION 5: ADMINISTRATIVE DEACTIVATION TOGGLE ---
   const handleToggleStaffAccess = async (profileId, currentStatus) => {
     setMessage('');
-    const promptMessage = currentStatus 
+    
+    // Explicitly handle null/undefined as active (true)
+    const isCurrentlyActive = currentStatus !== false; 
+    const nextStatus = !isCurrentlyActive;
+
+    const promptMessage = isCurrentlyActive 
       ? "Are you sure you want to SUSPEND this user?"
       : "Restore active app status permissions for this profile?";
       
@@ -248,16 +253,16 @@ export default function StaffManagement({ onBack, refreshMetrics }) {
     try {
       const { error } = await supabase
         .from('profiles')
-        .update({ is_active: !currentStatus })
+        .update({ is_active: nextStatus })
         .eq('id', profileId);
 
       if (error) throw error;
 
       setStaffList(prev => prev.map(staff => 
-        staff.id === profileId ? { ...staff, is_active: !currentStatus } : staff
+        staff.id === profileId ? { ...staff, is_active: nextStatus } : staff
       ));
       
-      setMessage(`Staff status changed to ${!currentStatus ? 'ACTIVE' : 'SUSPENDED'}`);
+      setMessage(`Staff status changed to ${nextStatus ? 'ACTIVE' : 'SUSPENDED'}`);
     } catch (err) {
       setMessage("Status alteration rejected: " + err.message);
     }
@@ -432,7 +437,7 @@ export default function StaffManagement({ onBack, refreshMetrics }) {
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5 px-1">Branch Name</label>
               <input 
                 type="text" 
-                placeholder="e.g., Owerri Showroom" 
+                placeholder="e.g., Main Showroom" 
                 className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 focus:bg-white text-slate-900 font-bold text-xs transition-all"
                 value={newBranchName}
                 onChange={(e) => setNewBranchName(e.target.value)}
@@ -444,7 +449,7 @@ export default function StaffManagement({ onBack, refreshMetrics }) {
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5 px-1">Location Details</label>
               <input 
                 type="text" 
-                placeholder="e.g., Suite 4 Umuikea Umuoma" 
+                placeholder="e.g., Commercial District" 
                 className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 focus:bg-white text-slate-900 font-bold text-xs transition-all"
                 value={newBranchLocation}
                 onChange={(e) => setNewBranchLocation(e.target.value)}
@@ -499,9 +504,10 @@ export default function StaffManagement({ onBack, refreshMetrics }) {
                   const fallbackName = staff.email ? staff.email.split('@')[0].toUpperCase() : 'New Staff';
                   const staffDisplayName = staff.full_name || staff.name || fallbackName;
                   const staffDisplayEmail = staff.email || 'No email attached';
+                  const isStaffActive = staff.is_active !== false;
 
                   return (
-                    <tr key={staff.id} className={`hover:bg-slate-50/50 transition-colors ${!staff.is_active ? 'bg-rose-50/30' : ''}`}>
+                    <tr key={staff.id} className={`hover:bg-slate-50/50 transition-colors ${!isStaffActive ? 'bg-rose-50/30' : ''}`}>
                       <td className="p-5">
                         <p className="font-extrabold text-slate-900 uppercase tracking-tight">{staffDisplayName}</p>
                         <p className="text-[10px] font-medium text-slate-400 lowercase mt-0.5">{staffDisplayEmail}</p>
@@ -538,12 +544,12 @@ export default function StaffManagement({ onBack, refreshMetrics }) {
                           type="button"
                           onClick={() => handleToggleStaffAccess(staff.id, staff.is_active)}
                           className={`px-3.5 py-2 rounded-xl font-black text-[10px] uppercase tracking-wider transition-all shadow-xs active:scale-95 inline-flex items-center gap-1.5 ${
-                            staff.is_active 
+                            isStaffActive 
                               ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200' 
                               : 'bg-rose-50 text-rose-600 border border-rose-200/80 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200'
                           }`}
                         >
-                          {staff.is_active ? (
+                          {isStaffActive ? (
                             <>
                               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                               <span>Active</span>
