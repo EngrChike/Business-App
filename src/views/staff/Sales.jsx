@@ -5,7 +5,7 @@ import { supabase } from '../../api/supabaseClient';
 import { useAuth } from "../../context/AuthContext"; 
 import { saveSaleOffline } from '../../utils/offlineStorage.js';
 
-// --- INLINE SVG ICON COMPONENTS (Zero External Dependencies) ---
+// --- INLINE SVG ICON COMPONENTS ---
 const IconBack = () => (
   <svg className="w-4 h-4 transition-transform group-hover:-translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
@@ -18,32 +18,32 @@ const IconStore = () => (
   </svg>
 );
 
-const IconChevronDown = ({ className = "w-4 h-4" }) => (
+const IconChevronDown = ({ className = "w-4 h-4 text-neutral-400" }) => (
   <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
   </svg>
 );
 
 const IconPlus = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4.5v15m7.5-7.5h-15" />
+  <svg className="w-4 h-4 text-neutral-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 4.5v15m7.5-7.5h-15" />
   </svg>
 );
 
 const IconMinus = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19.5 12h-15" />
+  <svg className="w-4 h-4 text-neutral-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19.5 12h-15" />
   </svg>
 );
 
 const IconShoppingBag = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+  <svg className="w-5 h-5 text-[#D4AF37]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119.993z" />
   </svg>
 );
 
 const IconCheckCircle = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+  <svg className="w-4 h-4 text-[#D4AF37]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
   </svg>
 );
@@ -57,6 +57,13 @@ const IconLogOut = () => (
 const IconLock = () => (
   <svg className="w-8 h-8 text-neutral-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+  </svg>
+);
+
+const IconSpinner = () => (
+  <svg className="w-5 h-5 animate-spin text-white" fill="none" viewBox="0 0 24 24">
+    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
   </svg>
 );
 
@@ -463,7 +470,7 @@ export default function Sales({ onBack, branchId: dashboardBranchId, refreshMetr
                     ))}
                   </select>
                   <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-[#D4AF37]">
-                    <IconChevronDown className="w-3 h-3" />
+                    <IconChevronDown className="w-3 h-3 text-[#D4AF37]" />
                   </div>
                 </div>
               ) : (
@@ -514,11 +521,11 @@ export default function Sales({ onBack, branchId: dashboardBranchId, refreshMetr
         </div>
         
         {/* INPUT BOUTIQUE FORM CARD */}
-        <div className="bg-white p-6 md:p-8 rounded-[32px] shadow-xl border border-neutral-100 mb-8 relative overflow-hidden">
+        <div className="bg-white p-6 md:p-8 rounded-[32px] shadow-xl border border-neutral-100/80 mb-8 relative overflow-hidden transition-all">
           <div className="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-neutral-900 via-[#D4AF37] to-neutral-900"></div>
           
           <label className="block text-[10px] font-black text-neutral-400 uppercase mb-2.5 tracking-[0.2em]">
-            {t('choose_item') || 'Choose Premium Item'}
+            {t('choose_item') || 'Choose Item'}
           </label>
           
           <div className="relative mb-6">
@@ -534,7 +541,7 @@ export default function Sales({ onBack, branchId: dashboardBranchId, refreshMetr
                 </option>
               ))}
             </select>
-            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-neutral-400">
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4">
               <IconChevronDown />
             </div>
           </div>
@@ -542,13 +549,13 @@ export default function Sales({ onBack, branchId: dashboardBranchId, refreshMetr
           {/* QUANTITY SELECTION WITH TACTILE BUTTONS */}
           <div className="mb-6">
             <label className="block text-[10px] font-black text-neutral-400 uppercase mb-2.5 tracking-[0.2em] text-center">
-              {t('qty_label') || 'Quantity Selection'}
+              {t('qty_label') || 'Qty'}
             </label>
-            <div className="flex items-center justify-center max-w-[200px] mx-auto bg-neutral-50 p-1.5 rounded-2xl border border-neutral-200">
+            <div className="flex items-center justify-center max-w-[200px] mx-auto bg-neutral-50 p-1.5 rounded-2xl border border-neutral-200 shadow-inner">
               <button 
                 type="button" 
                 onClick={handleDecrementQty}
-                className="w-11 h-11 rounded-xl bg-white text-neutral-800 font-bold border border-neutral-200 shadow-sm flex items-center justify-center active:scale-95 hover:bg-neutral-100 transition-all"
+                className="w-10 h-10 rounded-xl bg-white text-neutral-800 font-bold border border-neutral-200 shadow-sm flex items-center justify-center active:scale-95 hover:bg-neutral-100 transition-all"
               >
                 <IconMinus />
               </button>
@@ -556,7 +563,7 @@ export default function Sales({ onBack, branchId: dashboardBranchId, refreshMetr
               <input 
                 type="number" 
                 min="1" 
-                className="w-full py-2 bg-transparent font-black text-center text-neutral-900 text-lg outline-none" 
+                className="w-full py-1 bg-transparent font-black text-center text-neutral-900 text-lg outline-none" 
                 value={quantity} 
                 onChange={e => setQuantity(e.target.value)} 
               />
@@ -564,19 +571,28 @@ export default function Sales({ onBack, branchId: dashboardBranchId, refreshMetr
               <button 
                 type="button" 
                 onClick={handleIncrementQty}
-                className="w-11 h-11 rounded-xl bg-white text-neutral-800 font-bold border border-neutral-200 shadow-sm flex items-center justify-center active:scale-95 hover:bg-neutral-100 transition-all"
+                className="w-10 h-10 rounded-xl bg-white text-neutral-800 font-bold border border-neutral-200 shadow-sm flex items-center justify-center active:scale-95 hover:bg-neutral-100 transition-all"
               >
                 <IconPlus />
               </button>
             </div>
           </div>
 
-          {/* MODERN HIGH-STRIKE SUBMIT BUTTON */}
+          {/* CONFIRM ORDER BUTTON */}
           <button 
+            type="button"
             onClick={handleProcess} 
-            className="w-full py-4.5 bg-gradient-to-r from-neutral-950 via-neutral-900 to-neutral-950 text-white rounded-2xl font-black uppercase text-xs tracking-[0.25em] shadow-xl hover:shadow-2xl hover:shadow-neutral-900/20 active:scale-[0.98] transition-all duration-150 border border-neutral-800 relative group overflow-hidden flex items-center justify-center gap-2.5"
+            disabled={!selectedProduct || loading}
+            className={`
+              w-full h-14 rounded-2xl font-black uppercase text-xs tracking-[0.2em]
+              flex items-center justify-center gap-3 transition-all duration-200
+              focus:outline-none focus:ring-2 focus:ring-neutral-950 focus:ring-offset-2
+              ${!selectedProduct || loading
+                ? 'bg-neutral-100 text-neutral-400 border border-neutral-200 cursor-not-allowed shadow-none'
+                : 'bg-neutral-950 text-white hover:bg-black active:scale-[0.98] shadow-lg shadow-neutral-950/20 hover:shadow-xl hover:shadow-neutral-950/30 border border-neutral-800'
+              }
+            `}
           >
-            <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-shimmer" style={{ animationDuration: '2s' }}></span>
             <IconShoppingBag />
             <span>{t('confirm_order_btn') || 'Confirm Order'}</span>
           </button>
@@ -632,7 +648,7 @@ export default function Sales({ onBack, branchId: dashboardBranchId, refreshMetr
           </div>
         </div>
 
-        {/* MODERNIZED CONFIRMATION MODAL */}
+        {/* CONFIRMATION MODAL */}
         {confirmation && (
           <div className="fixed inset-0 bg-neutral-950/60 backdrop-blur-md flex items-center justify-center p-4 z-50 transition-all duration-300">
             <div className="bg-white w-full max-w-sm rounded-[36px] p-7 text-center shadow-2xl border border-neutral-100 animate-in zoom-in-95 duration-150 relative overflow-hidden">
@@ -648,15 +664,17 @@ export default function Sales({ onBack, branchId: dashboardBranchId, refreshMetr
                   type="button"
                   onClick={finalize} 
                   disabled={loading}
-                  className="w-full py-4 bg-neutral-950 text-white rounded-2xl font-black uppercase text-xs tracking-widest disabled:opacity-50 active:scale-98 transition-all shadow-xl border border-neutral-900 flex items-center justify-center gap-2"
+                  className="w-full py-4 bg-neutral-950 text-white rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-black active:scale-[0.98] transition-all duration-200 shadow-xl border border-neutral-900 flex items-center justify-center gap-2.5 focus:outline-none focus:ring-2 focus:ring-neutral-950 focus:ring-offset-2 disabled:opacity-50"
                 >
-                  <IconCheckCircle />
+                  {loading ? <IconSpinner /> : <IconCheckCircle />}
                   <span>{loading ? (t('processing_ledger') || 'Processing Ledger...') : (t('approve_sale_btn') || 'Approve Sale')}</span>
                 </button>
+
                 <button 
                   type="button" 
                   onClick={() => setConfirmation(null)} 
-                  className="w-full py-3.5 bg-neutral-50 text-neutral-400 rounded-2xl font-extrabold uppercase text-xs tracking-widest hover:bg-neutral-100 hover:text-neutral-600 transition-all"
+                  disabled={loading}
+                  className="w-full py-3.5 bg-neutral-50 text-neutral-400 rounded-2xl font-extrabold uppercase text-xs tracking-widest hover:bg-neutral-100 hover:text-neutral-600 active:scale-[0.98] transition-all"
                 >
                   {t('cancel')}
                 </button>
