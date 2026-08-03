@@ -13,7 +13,9 @@ import {
   ShieldAlert, 
   AlertTriangle, 
   ChevronRight, 
-  Loader2 
+  Loader2,
+  Sparkles,
+  ArrowUpRight
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext.jsx';
@@ -22,7 +24,7 @@ import { supabase } from '../api/supabaseClient';
 import Sales from '../views/staff/Sales';
 import Inventory from '../views/admin/Inventory';
 import Expenses from '../views/admin/Expenses';
-import BulkStock from '../views/admin/BulkStock'; // Linked Bulk Stock Vault view
+import BulkStock from '../views/admin/BulkStock';
 
 export default function ManagerDashboard() {
   const { user, signOut, branchId, role } = useAuth();
@@ -36,7 +38,7 @@ export default function ManagerDashboard() {
     revenue: 0,
     expenses: 0,
     lowStockCount: 0,
-    lowBulkStockCount: 0, // TRACKS THE NEW BULK ALERT LEVEL
+    lowBulkStockCount: 0,
     salesCount: 0
   });
 
@@ -50,7 +52,6 @@ export default function ManagerDashboard() {
       shiftTime.setHours(6, 0, 0, 0);
       const isoShiftStr = shiftTime.toISOString();
 
-      // Fetch bulk stock exceptions concurrently
       const [salesRes, expensesRes, inventoryRes, bulkInventoryRes] = await Promise.all([
         supabase
           .from('sales')
@@ -71,7 +72,7 @@ export default function ManagerDashboard() {
           .from('bulk_inventory')
           .select('package_quantity')
           .eq('branch_id', targetBranchId)
-          .lte('package_quantity', 3) // Captures items with 3, 2, 1, or 0 packages remaining
+          .lte('package_quantity', 3)
       ]);
 
       const dailyRevenue = (salesRes.data || []).reduce((sum, s) => sum + (s.total_amount || 0), 0);
@@ -128,24 +129,27 @@ export default function ManagerDashboard() {
     }
   };
 
-  // Sleek Glassmorphic Syncing Loader
+  // Modern Glassmorphic Sync Loader
   if (loadingContext) {
     return (
-      <div className="min-h-screen bg-[#F4F3ED] flex items-center justify-center font-sans antialiased p-6">
-        <div className="bg-white/80 backdrop-blur-md border border-slate-200/80 p-8 rounded-[32px] shadow-xl shadow-slate-200/50 flex flex-col items-center max-w-sm w-full text-center">
-          <Loader2 className="w-8 h-8 animate-spin text-indigo-600 mb-4" />
-          <p className="text-xs font-black text-slate-800 uppercase tracking-widest mb-1">
-            Synchronizing Executive Ledger
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center font-sans antialiased p-6 relative overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(99,102,241,0.15),transparent_50%)]" />
+        <div className="bg-slate-800/80 backdrop-blur-xl border border-slate-700/60 p-8 rounded-3xl shadow-2xl flex flex-col items-center max-w-sm w-full text-center relative z-10">
+          <div className="w-14 h-14 bg-indigo-500/10 rounded-2xl flex items-center justify-center mb-4 border border-indigo-500/20">
+            <Loader2 className="w-7 h-7 animate-spin text-indigo-400" />
+          </div>
+          <p className="text-xs font-black text-slate-100 uppercase tracking-widest mb-1.5 flex items-center gap-2">
+            <Sparkles className="w-3.5 h-3.5 text-indigo-400" /> Synchronizing Ledger
           </p>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-            Updating operational counters...
+          <p className="text-[11px] font-medium text-slate-400">
+            Updating active metrics...
           </p>
         </div>
       </div>
     );
   }
 
-  // --- APPLICATION INTERFACE VIEWS ROUTING ---
+  // Application Routing Views
   if (currentView === 'sales') {
     return <Sales onBack={() => setCurrentView('home')} branchId={branchId} refreshMetrics={triggerMetricsRefresh} />;
   }
@@ -162,167 +166,190 @@ export default function ManagerDashboard() {
   const netBalance = metrics.revenue - metrics.expenses;
 
   return (
-    <div className="min-h-screen bg-[#F4F3ED] text-[#111111] p-4 md:p-8 font-sans antialiased">
-      <div className="max-w-2xl mx-auto">
+    <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 font-sans antialiased relative selection:bg-indigo-500 selection:text-white">
+      {/* Background Subtle Radial Accent Glows */}
+      <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/20 via-slate-950 to-slate-950" />
+
+      <div className="max-w-3xl mx-auto relative z-10">
         
-        {/* EXECUTIVE HUB HEADER */}
-        <div className="flex justify-between items-start mb-8 mt-2">
+        {/* EXECUTIVE HEADER CONTROL */}
+        <header className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-8 pt-2">
           <div>
-            <h1 className="text-2xl font-black tracking-tight text-slate-900 uppercase italic">
-              Executive Dashboard Control
+            <div className="flex items-center gap-2 mb-1">
+              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Executive Terminal</span>
+            </div>
+            <h1 className="text-2xl md:text-3xl font-black tracking-tight text-white uppercase italic">
+              Manager Control Center
             </h1>
-            <div className="flex items-center gap-1.5 text-[10px] font-black uppercase text-indigo-700 bg-indigo-50 border border-indigo-100/80 px-3 py-1 rounded-full tracking-wider inline-flex mt-2 shadow-sm">
-              <MapPin className="w-3.5 h-3.5 text-indigo-600" />
-              <span>Operational Counter: {branchName}</span>
+            <div className="flex items-center gap-2 text-[11px] font-bold text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 px-3.5 py-1.5 rounded-full tracking-wide inline-flex mt-2 backdrop-blur-md">
+              <MapPin className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Counter: {branchName}</span>
             </div>
           </div>
 
           <button 
             onClick={signOut} 
-            className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:bg-rose-50 hover:border-rose-200 hover:text-rose-600 rounded-2xl font-bold text-xs uppercase tracking-wide transition-all shadow-sm active:scale-95 text-slate-700"
+            className="self-start sm:self-auto inline-flex items-center gap-2 px-4 py-2.5 bg-slate-900/80 hover:bg-rose-500/10 border border-slate-800 hover:border-rose-500/40 text-slate-300 hover:text-rose-400 rounded-2xl font-bold text-xs uppercase tracking-wider transition-all duration-200 shadow-sm active:scale-95"
           >
-            <LogOut className="w-3.5 h-3.5" />
-            <span>{t('sign_out') || 'Exit'}</span>
+            <LogOut className="w-4 h-4" />
+            <span>{t('sign_out') || 'Exit System'}</span>
           </button>
-        </div>
+        </header>
 
         {/* METRICS METERS */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
           
           {/* Shift Inflow */}
-          <div className="bg-white p-6 rounded-[28px] border border-slate-200/60 shadow-sm relative overflow-hidden group hover:shadow-md transition-shadow">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-[9px] font-black tracking-widest text-emerald-600 uppercase">Shift Inflow</span>
-              <div className="w-7 h-7 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center">
-                <TrendingUp className="w-3.5 h-3.5" />
+          <div className="bg-slate-900/80 backdrop-blur-xl p-5 rounded-3xl border border-slate-800/80 shadow-lg relative overflow-hidden group hover:border-emerald-500/30 transition-all duration-300">
+            <div className="flex justify-between items-center mb-3">
+              <span className="text-[10px] font-black tracking-widest text-emerald-400 uppercase">Shift Inflow</span>
+              <div className="w-8 h-8 bg-emerald-500/10 text-emerald-400 rounded-xl flex items-center justify-center border border-emerald-500/20">
+                <TrendingUp className="w-4 h-4" />
               </div>
             </div>
-            <p className="text-xl font-black text-slate-900">
-              {metrics.revenue.toLocaleString()} <span className="text-[10px] text-slate-400 font-bold">FCFA</span>
+            <p className="text-2xl font-black text-white tracking-tight">
+              {metrics.revenue.toLocaleString()} <span className="text-xs text-slate-400 font-bold">FCFA</span>
             </p>
-            <span className="text-[10px] text-slate-400 font-bold mt-1 block">
-              {metrics.salesCount} processing bills logs
+            <span className="text-[10px] text-slate-400 font-semibold mt-2 block">
+              {metrics.salesCount} processing bills logged
             </span>
           </div>
 
           {/* Shift Outflow */}
-          <div className="bg-white p-6 rounded-[28px] border border-slate-200/60 shadow-sm relative overflow-hidden group hover:shadow-md transition-shadow">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-[9px] font-black tracking-widest text-rose-500 uppercase">Shift Outflow</span>
-              <div className="w-7 h-7 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center">
-                <TrendingDown className="w-3.5 h-3.5" />
+          <div className="bg-slate-900/80 backdrop-blur-xl p-5 rounded-3xl border border-slate-800/80 shadow-lg relative overflow-hidden group hover:border-rose-500/30 transition-all duration-300">
+            <div className="flex justify-between items-center mb-3">
+              <span className="text-[10px] font-black tracking-widest text-rose-400 uppercase">Shift Outflow</span>
+              <div className="w-8 h-8 bg-rose-500/10 text-rose-400 rounded-xl flex items-center justify-center border border-rose-500/20">
+                <TrendingDown className="w-4 h-4" />
               </div>
             </div>
-            <p className="text-xl font-black text-slate-900">
-              {metrics.expenses.toLocaleString()} <span className="text-[10px] text-slate-400 font-bold">FCFA</span>
+            <p className="text-2xl font-black text-white tracking-tight">
+              {metrics.expenses.toLocaleString()} <span className="text-xs text-slate-400 font-bold">FCFA</span>
             </p>
-            <span className="text-[10px] text-slate-400 font-bold mt-1 block">
+            <span className="text-[10px] text-slate-400 font-semibold mt-2 block">
               Operational expenditures
             </span>
           </div>
 
           {/* Net Flow Balance */}
-          <div className={`p-6 rounded-[28px] border shadow-sm relative overflow-hidden transition-all ${
-            netBalance >= 0 ? 'bg-white border-slate-200/60' : 'bg-rose-50/40 border-rose-200/80'
+          <div className={`p-5 rounded-3xl border backdrop-blur-xl shadow-lg relative overflow-hidden transition-all duration-300 ${
+            netBalance >= 0 
+              ? 'bg-slate-900/80 border-slate-800/80 hover:border-indigo-500/30' 
+              : 'bg-rose-950/20 border-rose-500/30'
           }`}>
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-[9px] font-black tracking-widest text-slate-400 uppercase">Net Flow Balance</span>
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center ${
-                netBalance >= 0 ? 'bg-indigo-50 text-indigo-600' : 'bg-rose-100 text-rose-600'
+            <div className="flex justify-between items-center mb-3">
+              <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase">Net Balance</span>
+              <div className={`w-8 h-8 rounded-xl flex items-center justify-center border ${
+                netBalance >= 0 
+                  ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' 
+                  : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
               }`}>
-                <Wallet className="w-3.5 h-3.5" />
+                <Wallet className="w-4 h-4" />
               </div>
             </div>
-            <p className={`text-xl font-black ${netBalance >= 0 ? 'text-indigo-600' : 'text-rose-600'}`}>
-              {netBalance.toLocaleString()} <span className="text-[10px] opacity-60 font-bold">FCFA</span>
+            <p className={`text-2xl font-black tracking-tight ${netBalance >= 0 ? 'text-indigo-400' : 'text-rose-400'}`}>
+              {netBalance.toLocaleString()} <span className="text-xs opacity-60 font-bold">FCFA</span>
             </p>
-            <span className="text-[10px] text-slate-400 font-bold mt-1 block">
+            <span className="text-[10px] text-slate-400 font-semibold mt-2 block">
               Live cash register weight
             </span>
           </div>
         </div>
 
-        {/* CRITICAL RETAIL STOCK NOTIFICATION */}
-        {metrics.lowStockCount > 0 && (
-          <div 
-            onClick={() => setCurrentView('inventory')} 
-            className="bg-amber-500 hover:bg-amber-600 cursor-pointer p-4 rounded-2xl text-white font-bold text-xs uppercase tracking-wider flex justify-between items-center mb-3 shadow-md transition-all active:scale-[0.99] border border-amber-400"
-          >
-            <div className="flex items-center gap-2.5">
-              <AlertTriangle className="w-4 h-4 shrink-0 text-white" />
-              <span>Storage Warning: {metrics.lowStockCount} item variants critically low!</span>
+        {/* NOTIFICATIONS SECTION */}
+        <div className="space-y-3 mb-8">
+          {/* CRITICAL RETAIL STOCK ALERT */}
+          {metrics.lowStockCount > 0 && (
+            <div 
+              onClick={() => setCurrentView('inventory')} 
+              className="group bg-amber-500/10 hover:bg-amber-500/15 border border-amber-500/30 cursor-pointer p-4 rounded-2xl text-amber-200 font-bold text-xs uppercase tracking-wider flex justify-between items-center shadow-lg backdrop-blur-md transition-all active:scale-[0.99]"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-400 border border-amber-500/30">
+                  <AlertTriangle className="w-4 h-4" />
+                </div>
+                <span>Storage Warning: {metrics.lowStockCount} items critically low!</span>
+              </div>
+              <span className="bg-amber-500 text-slate-950 px-3 py-1.5 rounded-xl text-[10px] font-black shrink-0 shadow-md inline-flex items-center gap-1.5 group-hover:bg-amber-400 transition-colors">
+                Refill Logistics <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+              </span>
             </div>
-            <span className="bg-white text-amber-600 px-3 py-1 rounded-xl text-[10px] font-black shrink-0 shadow-sm inline-flex items-center gap-1">
-              Refill Logistics <ChevronRight className="w-3 h-3" />
-            </span>
-          </div>
-        )}
+          )}
 
-        {/* CRITICAL BULK VAULT STOCK NOTIFICATION */}
-        {metrics.lowBulkStockCount > 0 && (
-          <div 
-            onClick={() => setCurrentView('bulk_stock')} 
-            className="bg-rose-600 hover:bg-rose-700 cursor-pointer p-4 rounded-2xl text-white font-bold text-xs uppercase tracking-wider flex justify-between items-center mb-6 shadow-md shadow-rose-500/20 transition-all active:scale-[0.99] border border-rose-500"
-          >
-            <div className="flex items-center gap-2.5">
-              <ShieldAlert className="w-4 h-4 shrink-0 text-white animate-pulse" />
-              <span>Bulk Storage Alert: {metrics.lowBulkStockCount} lines low on packages!</span>
+          {/* CRITICAL BULK VAULT ALERT */}
+          {metrics.lowBulkStockCount > 0 && (
+            <div 
+              onClick={() => setCurrentView('bulk_stock')} 
+              className="group bg-rose-500/10 hover:bg-rose-500/15 border border-rose-500/30 cursor-pointer p-4 rounded-2xl text-rose-200 font-bold text-xs uppercase tracking-wider flex justify-between items-center shadow-lg backdrop-blur-md transition-all active:scale-[0.99]"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-rose-500/20 flex items-center justify-center text-rose-400 border border-rose-500/30">
+                  <ShieldAlert className="w-4 h-4 animate-pulse" />
+                </div>
+                <span>Bulk Storage Alert: {metrics.lowBulkStockCount} lines low on packages!</span>
+              </div>
+              <span className="bg-rose-500 text-white px-3 py-1.5 rounded-xl text-[10px] font-black shrink-0 shadow-md inline-flex items-center gap-1.5 group-hover:bg-rose-400 transition-colors">
+                Refill Vault <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+              </span>
             </div>
-            <span className="bg-white text-rose-600 px-3 py-1 rounded-xl text-[10px] font-black shrink-0 shadow-sm inline-flex items-center gap-1">
-              Refill Vault <ChevronRight className="w-3 h-3" />
-            </span>
-          </div>
-        )}
+          )}
+        </div>
 
-        {/* APPLICATION BUTTON CONSOLE */}
-        <h2 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 px-1">
-          Management Hub Applications
-        </h2>
+        {/* MANAGEMENT NAVIGATION CONSOLE */}
+        <div className="mb-4 flex items-center justify-between px-1">
+          <h2 className="text-[11px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-2">
+            <span>Management Console</span>
+          </h2>
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">4 Modules Active</span>
+        </div>
         
-        <div className="grid grid-cols-1 gap-3.5">
+        <div className="grid grid-cols-1 gap-4">
           
-          {/* BULK STORAGE VAULT ENTRY CARD */}
+          {/* BULK STORAGE VAULT */}
           <button 
             onClick={() => setCurrentView('bulk_stock')} 
-            className="w-full p-5 bg-white border border-slate-200/80 hover:border-indigo-400/80 rounded-[24px] shadow-sm hover:shadow-md flex justify-between items-center group transition-all text-left relative overflow-hidden border-l-4 border-l-indigo-600 active:scale-[0.99]"
+            className="w-full p-5 bg-slate-900/80 border border-slate-800 hover:border-indigo-500/50 rounded-3xl shadow-lg flex justify-between items-center group transition-all duration-300 text-left backdrop-blur-xl relative overflow-hidden active:scale-[0.99]"
           >
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-indigo-50 border border-indigo-100 rounded-2xl flex items-center justify-center text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors shrink-0">
+              <div className="w-13 h-13 p-3.5 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/20 group-hover:scale-105 transition-transform duration-300 shrink-0 flex items-center justify-center">
                 <Warehouse className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="font-black text-sm text-slate-900 uppercase tracking-tight group-hover:text-indigo-600 transition-colors">
+                <h3 className="font-black text-sm text-white uppercase tracking-tight group-hover:text-indigo-400 transition-colors flex items-center gap-2">
                   Bulk Supply Storage Vault
+                  <ArrowUpRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity text-indigo-400" />
                 </h3>
-                <p className="text-xs text-slate-400 font-medium mt-0.5">
-                  Monitor central storage balance metrics and record item packages extracted.
+                <p className="text-xs text-slate-400 font-medium mt-1">
+                  Monitor central bulk metrics and record extracted packages.
                 </p>
               </div>
             </div>
-            <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-all shrink-0 ml-2">
+            <div className="w-9 h-9 rounded-2xl bg-slate-800/80 border border-slate-700/60 flex items-center justify-center text-slate-400 group-hover:bg-indigo-500 group-hover:text-white group-hover:border-indigo-400 transition-all duration-300 shrink-0 ml-2">
               <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
             </div>
           </button>
 
-          {/* SALES PROCESSING TERMINAL */}
+          {/* SALES TERMINAL */}
           <button 
             onClick={() => setCurrentView('sales')} 
-            className="w-full p-5 bg-white border border-slate-200/80 hover:border-emerald-400/80 rounded-[24px] shadow-sm hover:shadow-md flex justify-between items-center group transition-all text-left border-l-4 border-l-emerald-500 active:scale-[0.99]"
+            className="w-full p-5 bg-slate-900/80 border border-slate-800 hover:border-emerald-500/50 rounded-3xl shadow-lg flex justify-between items-center group transition-all duration-300 text-left backdrop-blur-xl relative overflow-hidden active:scale-[0.99]"
           >
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-center justify-center text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors shrink-0">
+              <div className="w-13 h-13 p-3.5 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/20 group-hover:scale-105 transition-transform duration-300 shrink-0 flex items-center justify-center">
                 <ShoppingCart className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="font-black text-sm text-slate-900 uppercase tracking-tight group-hover:text-emerald-600 transition-colors">
+                <h3 className="font-black text-sm text-white uppercase tracking-tight group-hover:text-emerald-400 transition-colors flex items-center gap-2">
                   Sales Processing Terminal
+                  <ArrowUpRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity text-emerald-400" />
                 </h3>
-                <p className="text-xs text-slate-400 font-medium mt-0.5">
+                <p className="text-xs text-slate-400 font-medium mt-1">
                   Register client transactions, cash receipts, and manage tab debts.
                 </p>
               </div>
             </div>
-            <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-emerald-50 group-hover:text-emerald-600 transition-all shrink-0 ml-2">
+            <div className="w-9 h-9 rounded-2xl bg-slate-800/80 border border-slate-700/60 flex items-center justify-center text-slate-400 group-hover:bg-emerald-500 group-hover:text-white group-hover:border-emerald-400 transition-all duration-300 shrink-0 ml-2">
               <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
             </div>
           </button>
@@ -330,45 +357,47 @@ export default function ManagerDashboard() {
           {/* INVENTORY INTELLIGENCE */}
           <button 
             onClick={() => setCurrentView('inventory')} 
-            className="w-full p-5 bg-white border border-slate-200/80 hover:border-amber-400/80 rounded-[24px] shadow-sm hover:shadow-md flex justify-between items-center group transition-all text-left border-l-4 border-l-amber-500 active:scale-[0.99]"
+            className="w-full p-5 bg-slate-900/80 border border-slate-800 hover:border-amber-500/50 rounded-3xl shadow-lg flex justify-between items-center group transition-all duration-300 text-left backdrop-blur-xl relative overflow-hidden active:scale-[0.99]"
           >
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-amber-50 border border-amber-100 rounded-2xl flex items-center justify-center text-amber-600 group-hover:bg-amber-500 group-hover:text-white transition-colors shrink-0">
+              <div className="w-13 h-13 p-3.5 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg shadow-amber-500/20 group-hover:scale-105 transition-transform duration-300 shrink-0 flex items-center justify-center">
                 <Package className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="font-black text-sm text-slate-900 uppercase tracking-tight group-hover:text-amber-600 transition-colors">
+                <h3 className="font-black text-sm text-white uppercase tracking-tight group-hover:text-amber-400 transition-colors flex items-center gap-2">
                   Inventory Intelligence
+                  <ArrowUpRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity text-amber-400" />
                 </h3>
-                <p className="text-xs text-slate-400 font-medium mt-0.5">
+                <p className="text-xs text-slate-400 font-medium mt-1">
                   Log logistics entry refills, analyze item counts, and configure prices.
                 </p>
               </div>
             </div>
-            <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-amber-50 group-hover:text-amber-600 transition-all shrink-0 ml-2">
+            <div className="w-9 h-9 rounded-2xl bg-slate-800/80 border border-slate-700/60 flex items-center justify-center text-slate-400 group-hover:bg-amber-500 group-hover:text-white group-hover:border-amber-400 transition-all duration-300 shrink-0 ml-2">
               <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
             </div>
           </button>
 
-          {/* EXPENSE REGISTRY CONSOLE */}
+          {/* EXPENSE REGISTRY */}
           <button 
             onClick={() => setCurrentView('expenses')} 
-            className="w-full p-5 bg-white border border-slate-200/80 hover:border-rose-400/80 rounded-[24px] shadow-sm hover:shadow-md flex justify-between items-center group transition-all text-left border-l-4 border-l-rose-500 active:scale-[0.99]"
+            className="w-full p-5 bg-slate-900/80 border border-slate-800 hover:border-rose-500/50 rounded-3xl shadow-lg flex justify-between items-center group transition-all duration-300 text-left backdrop-blur-xl relative overflow-hidden active:scale-[0.99]"
           >
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-rose-50 border border-rose-100 rounded-2xl flex items-center justify-center text-rose-500 group-hover:bg-rose-500 group-hover:text-white transition-colors shrink-0">
+              <div className="w-13 h-13 p-3.5 rounded-2xl bg-gradient-to-br from-rose-500 to-pink-600 text-white shadow-lg shadow-rose-500/20 group-hover:scale-105 transition-transform duration-300 shrink-0 flex items-center justify-center">
                 <Receipt className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="font-black text-sm text-slate-900 uppercase tracking-tight group-hover:text-rose-600 transition-colors">
+                <h3 className="font-black text-sm text-white uppercase tracking-tight group-hover:text-rose-400 transition-colors flex items-center gap-2">
                   Expense Registry Console
+                  <ArrowUpRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity text-rose-400" />
                 </h3>
-                <p className="text-xs text-slate-400 font-medium mt-0.5">
+                <p className="text-xs text-slate-400 font-medium mt-1">
                   Track branch overhead payouts, shop utilities, and custom supply purchases.
                 </p>
               </div>
             </div>
-            <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-rose-50 group-hover:text-rose-600 transition-all shrink-0 ml-2">
+            <div className="w-9 h-9 rounded-2xl bg-slate-800/80 border border-slate-700/60 flex items-center justify-center text-slate-400 group-hover:bg-rose-500 group-hover:text-white group-hover:border-rose-400 transition-all duration-300 shrink-0 ml-2">
               <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
             </div>
           </button>
