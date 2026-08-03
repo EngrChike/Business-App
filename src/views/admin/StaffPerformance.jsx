@@ -1,12 +1,31 @@
+// src/views/admin/StaffPerformance.jsx
 import React, { useState, useEffect } from 'react';
-import { useLanguage } from '../../context/LanguageContext.jsx'; // Multilingual context hook
+import { 
+  ArrowLeft, 
+  ShieldCheck, 
+  ClipboardList, 
+  Globe, 
+  MapPin, 
+  ChevronRight, 
+  Loader2, 
+  Calendar, 
+  User, 
+  Wallet, 
+  AlertCircle, 
+  Receipt, 
+  Printer, 
+  Clock,
+  TrendingUp,
+  FileSpreadsheet
+} from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext.jsx';
 import { supabase } from '../../api/supabaseClient';
 
 export default function StaffPerformance({ onBack }) {
   const { t } = useLanguage();
   const [salesData, setSalesData] = useState([]);
   const [branches, setBranches] = useState([]);
-  const [selectedBranchId, setSelectedBranchId] = useState("all"); // Executive multi-branch filter state
+  const [selectedBranchId, setSelectedBranchId] = useState("all");
   const [loading, setLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -125,61 +144,76 @@ export default function StaffPerformance({ onBack }) {
     .reduce((sum, s) => sum + (Number(s.total_amount) || Number(s.total_price) || 0), 0);
 
   return (
-    <div className="min-h-screen bg-[#F4F3ED] text-[#111111] p-4 md:p-8 font-sans antialiased pb-24">
-      <div className="max-w-xl mx-auto">
+    <div className="min-h-screen bg-slate-50 text-slate-800 p-4 md:p-8 font-sans antialiased pb-24">
+      <div className="max-w-xl mx-auto space-y-6">
         
-        {/* --- PREMIUM DYNAMIC NAVIGATION HEADER --- */}
-        <div className="flex flex-col gap-4 mb-6 mt-2">
-          <div className="flex justify-between items-center">
+        {/* DYNAMIC NAVIGATION HEADER */}
+        <div className="flex flex-col gap-4 mt-2">
+          <div className="flex justify-between items-center gap-2">
             <button 
               onClick={handleBackNavigation} 
-              className="text-[#3F51B5] font-bold text-xs tracking-wider uppercase hover:opacity-80 transition-all active:scale-95"
+              className="inline-flex items-center gap-1.5 text-indigo-600 font-extrabold text-xs tracking-wider uppercase hover:text-indigo-700 transition-colors py-1 px-2.5 rounded-lg hover:bg-indigo-50 active:scale-95"
             >
-              {navLayer === 'months' ? (t('back_main_console') || '← Main Console') : t('back')}
+              <ArrowLeft className="w-4 h-4" />
+              <span>{navLayer === 'months' ? (t('back_main_console') || 'Main Console') : t('back')}</span>
             </button>
             <div className="text-right">
-              <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mb-0.5">
+              <p className="text-slate-400 font-extrabold text-[10px] uppercase tracking-widest mb-0.5">
                 {t('perf_intel_tag') || 'Performance Intel'}
               </p>
-              <h2 className="text-xs font-extrabold text-slate-800 uppercase tracking-tight bg-white border border-slate-200 px-3 py-1 rounded-full shadow-sm">
-                {isAdmin 
-                  ? (t('ceo_oversight_title') || '👑 CEO Oversight Hub') 
-                  : (t('shift_metrics_title') || '📋 Shift Log Metrics')}
+              <h2 className="text-xs font-black text-slate-800 uppercase tracking-tight bg-white border border-slate-200/80 px-3 py-1 rounded-full shadow-xs inline-flex items-center gap-1.5">
+                {isAdmin ? (
+                  <>
+                    <ShieldCheck className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                    <span>{t('ceo_oversight_title') || 'CEO Oversight Hub'}</span>
+                  </>
+                ) : (
+                  <>
+                    <ClipboardList className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                    <span>{t('shift_metrics_title') || 'Shift Log Metrics'}</span>
+                  </>
+                )}
               </h2>
             </div>
           </div>
 
           {/* GLOBAL BRANCH SELECTOR FILTER CONTROL */}
           {isAdmin && navLayer === 'months' && (
-            <select
-              value={selectedBranchId}
-              onChange={(e) => setSelectedBranchId(e.target.value)}
-              className="w-full bg-white border border-slate-200 text-slate-800 font-bold text-xs rounded-2xl px-4 py-3.5 shadow-sm outline-none tracking-wide focus:border-slate-300 transition-all"
-            >
-              <option value="all">🌐 Across All Branches (Global Archive)</option>
-              {branches.map(b => (
-                <option key={b.id} value={b.id}>📍 {b.name}</option>
-              ))}
-            </select>
+            <div className="relative">
+              <select
+                value={selectedBranchId}
+                onChange={(e) => setSelectedBranchId(e.target.value)}
+                className="w-full bg-white border border-slate-200/80 text-slate-800 font-extrabold text-xs rounded-2xl px-4 py-3.5 pr-10 shadow-xs outline-none tracking-wide focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all appearance-none cursor-pointer"
+              >
+                <option value="all">Across All Branches (Global Archive)</option>
+                {branches.map(b => (
+                  <option key={b.id} value={b.id}>Station: {b.name}</option>
+                ))}
+              </select>
+              <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                <Globe className="w-4 h-4" />
+              </div>
+            </div>
           )}
         </div>
 
-        {/* LOADING INDICATOR STATE */}
+        {/* LOADING STATE */}
         {loading && (
           <div className="text-center py-24 flex flex-col items-center justify-center gap-3">
-            <div className="h-6 w-6 border-2 border-[#3F51B5] border-t-transparent rounded-full animate-spin"></div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest animate-pulse">
+            <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest animate-pulse">
               {t('syncing_ledgers_msg') || 'Synchronizing Corporate Ledgers...'}
             </p>
           </div>
         )}
 
-        {/* --- LAYER 1: MONTHLY MATRIX --- */}
+        {/* LAYER 1: MONTHLY MATRIX */}
         {!loading && navLayer === 'months' && (
           <div className="space-y-4">
             <div className="mb-2 ml-1">
-              <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                {t('historical_ledgers_label') || 'Historical Month Ledgers'}
+              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+                <span>{t('historical_ledgers_label') || 'Historical Month Ledgers'}</span>
               </h3>
             </div>
             {Object.keys(groupedRegistry).length === 0 ? (
@@ -191,27 +225,28 @@ export default function StaffPerformance({ onBack }) {
                 <button
                   key={month}
                   onClick={() => { setSelectedMonth(month); setNavLayer('days'); }}
-                  className="w-full bg-white border border-slate-100 hover:border-slate-200 p-6 rounded-[28px] flex justify-between items-center transition-all hover:scale-[1.01] active:scale-99 shadow-sm group"
+                  className="w-full bg-white border border-slate-200/80 hover:border-indigo-300 p-6 rounded-[28px] flex justify-between items-center transition-all hover:shadow-md active:scale-[0.99] shadow-xs group"
                 >
                   <div className="text-left">
-                    <p className="text-base font-extrabold tracking-tight text-slate-900 group-hover:text-[#3F51B5] transition-colors">{month}</p>
+                    <p className="text-base font-extrabold tracking-tight text-slate-900 group-hover:text-indigo-600 transition-colors">{month}</p>
                     <p className="text-[11px] text-slate-400 font-medium tracking-wide mt-0.5">
                       {Object.keys(groupedRegistry[month]).length} {t('shift_windows_logged') || 'Operational Shift Windows Logged'}
                     </p>
                   </div>
-                  <span className="text-slate-300 group-hover:text-[#3F51B5] font-bold transition-colors text-sm">➔</span>
+                  <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-indigo-600 transition-colors" />
                 </button>
               ))
             )}
           </div>
         )}
 
-        {/* --- LAYER 2: SHIFT BOXES WITHIN MONTH --- */}
+        {/* LAYER 2: SHIFT BOXES WITHIN MONTH */}
         {!loading && navLayer === 'days' && (
           <div className="space-y-3">
             <div className="mb-4 ml-1">
-              <span className="text-[9px] font-black bg-indigo-50 text-[#3F51B5] border border-indigo-100/50 px-3 py-1 rounded-md uppercase tracking-wider">
-                {t('target_scope_badge') || 'Active Target Scope'}
+              <span className="text-[9px] font-black bg-indigo-50 text-indigo-700 border border-indigo-100 px-3 py-1 rounded-md uppercase tracking-wider inline-flex items-center gap-1">
+                <Calendar className="w-3 h-3 text-indigo-600" />
+                <span>{t('target_scope_badge') || 'Active Target Scope'}</span>
               </span>
               <h3 className="text-xl font-black text-slate-900 mt-2.5 tracking-tight">{selectedMonth}</h3>
             </div>
@@ -221,15 +256,16 @@ export default function StaffPerformance({ onBack }) {
                 <button
                   key={dayKey}
                   onClick={() => { setSelectedDay(dayKey); setNavLayer('staff'); }}
-                  className="w-full bg-white border border-slate-100 p-5 rounded-[22px] flex justify-between items-center transition-all hover:scale-[1.01] active:scale-99 shadow-sm text-left"
+                  className="w-full bg-white border border-slate-200/80 hover:border-indigo-300 p-5 rounded-[22px] flex justify-between items-center transition-all active:scale-[0.99] shadow-xs text-left group"
                 >
                   <div>
-                    <p className="text-sm font-extrabold text-slate-800 uppercase tracking-tight">{formattedDate}</p>
-                    <p className="text-[10px] text-slate-400 font-medium mt-0.5">
-                      {t('operational_window_desc') || 'Standard Operational Window: 06:00 AM - 06:00 AM'}
+                    <p className="text-sm font-extrabold text-slate-900 uppercase tracking-tight group-hover:text-indigo-600 transition-colors">{formattedDate}</p>
+                    <p className="text-[10px] text-slate-400 font-medium mt-0.5 inline-flex items-center gap-1">
+                      <Clock className="w-3 h-3 text-slate-400" />
+                      <span>{t('operational_window_desc') || 'Standard Operational Window: 06:00 AM - 06:00 AM'}</span>
                     </p>
                   </div>
-                  <span className="text-[10px] font-extrabold text-[#3F51B5] bg-indigo-50/60 border border-indigo-100/50 px-3 py-1.5 rounded-xl uppercase tracking-wider">
+                  <span className="text-[10px] font-extrabold text-indigo-600 bg-indigo-50 border border-indigo-100 px-3 py-1.5 rounded-xl uppercase tracking-wider group-hover:bg-indigo-600 group-hover:text-white transition-all">
                     {t('view_run_btn') || 'View Run'}
                   </span>
                 </button>
@@ -238,12 +274,13 @@ export default function StaffPerformance({ onBack }) {
           </div>
         )}
 
-        {/* --- LAYER 3: STAFF SHIFTS --- */}
+        {/* LAYER 3: STAFF SHIFTS */}
         {!loading && navLayer === 'staff' && (
           <div className="space-y-3">
             <div className="mb-4 ml-1">
-              <span className="text-[9px] font-black bg-emerald-50 text-emerald-600 border border-emerald-100/50 px-3 py-1 rounded-md uppercase tracking-wider">
-                {t('target_date_badge') || 'Target Date Selection'}
+              <span className="text-[9px] font-black bg-emerald-50 text-emerald-700 border border-emerald-100 px-3 py-1 rounded-md uppercase tracking-wider inline-flex items-center gap-1">
+                <Calendar className="w-3 h-3 text-emerald-600" />
+                <span>{t('target_date_badge') || 'Target Date Selection'}</span>
               </span>
               <h3 className="text-lg font-black text-slate-900 mt-2.5 tracking-tight">
                 {new Date(selectedDay).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}
@@ -256,10 +293,13 @@ export default function StaffPerformance({ onBack }) {
                 <button
                   key={name}
                   onClick={() => { setSelectedStaffName(name); setNavLayer('summary'); }}
-                  className="w-full bg-white border border-slate-100 p-5 rounded-[22px] flex justify-between items-center transition-all hover:scale-[1.01] active:scale-99 shadow-sm text-left"
+                  className="w-full bg-white border border-slate-200/80 hover:border-indigo-300 p-5 rounded-[22px] flex justify-between items-center transition-all active:scale-[0.99] shadow-xs text-left group"
                 >
-                  <div className="truncate max-w-[65%]">
-                    <p className="text-sm font-extrabold text-slate-900 tracking-tight truncate uppercase">{name}</p>
+                  <div className="truncate max-w-[60%]">
+                    <p className="text-sm font-extrabold text-slate-900 tracking-tight truncate uppercase group-hover:text-indigo-600 transition-colors flex items-center gap-1.5">
+                      <User className="w-4 h-4 text-indigo-600 shrink-0" />
+                      <span className="truncate">{name}</span>
+                    </p>
                     <p className="text-[10px] text-slate-400 font-medium mt-0.5">
                       {staffSales.length} {t('active_ledger_runs_label') || 'Active Ledger Runs'}
                     </p>
@@ -268,7 +308,7 @@ export default function StaffPerformance({ onBack }) {
                     <p className="text-sm font-black text-emerald-600 tracking-tight">
                       {totalVolume.toLocaleString()} <span className="text-[9px] text-slate-400 font-bold">FCFA</span>
                     </p>
-                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-0.5">
                       {t('gross_turnover_label') || 'Gross Turnover'}
                     </p>
                   </div>
@@ -278,78 +318,91 @@ export default function StaffPerformance({ onBack }) {
           </div>
         )}
 
-        {/* --- LAYER 4: ACCOUNT CLOSING REPORT --- */}
+        {/* LAYER 4: ACCOUNT CLOSING REPORT */}
         {!loading && navLayer === 'summary' && (
-          <div className="animate-in fade-in slide-in-from-bottom-2 duration-200">
-            <div className="mb-6 ml-1">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+          <div className="space-y-5 animate-in fade-in duration-200">
+            <div className="ml-1">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
                 {t('shift_closeout_title') || 'Shift Closeout Summary'}
               </p>
-              <h2 className="text-xl font-black text-slate-900 truncate tracking-tight mt-1 uppercase">{selectedStaffName}</h2>
+              <h2 className="text-xl font-black text-slate-900 truncate tracking-tight mt-0.5 uppercase flex items-center gap-2">
+                <User className="w-5 h-5 text-indigo-600" />
+                <span>{selectedStaffName}</span>
+              </h2>
               <p className="text-[11px] text-slate-400 font-semibold tracking-wide mt-0.5">
                 {t('window_label') || 'Window'}: {new Date(selectedDay).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}
               </p>
             </div>
 
             {/* HIGH END REVENUE ACCENT DISPLAY HERO */}
-            <div className="bg-gradient-to-br from-[#3F51B5] to-[#2A3B93] p-8 rounded-[32px] shadow-md mb-4 relative overflow-hidden text-center text-white border border-indigo-200">
-              <p className="text-indigo-200 text-[10px] font-bold uppercase tracking-widest mb-1">
-                {t('cash_to_handover_label') || 'Cash to Hand Over'}
+            <div className="bg-gradient-to-br from-indigo-600 to-indigo-900 p-8 rounded-[32px] shadow-sm relative overflow-hidden text-center text-white border border-indigo-500/30">
+              <p className="text-indigo-200 text-[10px] font-black uppercase tracking-widest mb-1 flex items-center justify-center gap-1.5">
+                <Wallet className="w-3.5 h-3.5 text-indigo-300" />
+                <span>{t('cash_to_handover_label') || 'Cash to Hand Over'}</span>
               </p>
               <p className="text-4xl font-black tracking-tight">
-                {cashToHandOver.toLocaleString()} <span className="text-sm font-medium opacity-60 ml-0.5">FCFA</span>
+                {cashToHandOver.toLocaleString()} <span className="text-sm font-medium opacity-70 ml-0.5">FCFA</span>
               </p>
-              <div className="absolute -right-4 -bottom-6 text-white/5 text-6xl font-black rotate-12 select-none pointer-events-none">CASH</div>
+              <div className="absolute -right-2 -bottom-4 text-white/5 select-none pointer-events-none">
+                <Wallet className="w-32 h-32" />
+              </div>
             </div>
 
             {/* UNPAID TABS HIGHLIGHT */}
-            <div className="bg-white border border-slate-100 p-5 rounded-[24px] shadow-sm mb-6 flex justify-between items-center">
+            <div className="bg-white border border-slate-200/80 p-5 rounded-[24px] shadow-xs flex justify-between items-center">
               <div>
-                <p className="text-[#FF5A50] text-[10px] font-bold uppercase tracking-widest mb-0.5">
-                  {t('unpaid_tabs_balance_label') || 'Unpaid Tabs Balance (Debts Logged)'}
+                <p className="text-rose-600 text-[10px] font-black uppercase tracking-widest mb-0.5 flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5 text-rose-500" />
+                  <span>{t('unpaid_tabs_balance_label') || 'Unpaid Tabs Balance (Debts Logged)'}</span>
                 </p>
                 <p className="text-lg font-black text-slate-900 tracking-tight">
                   {pendingDebts.toLocaleString()} <span className="text-[11px] text-slate-400 font-bold">FCFA</span>
                 </p>
               </div>
-              <div className="w-9 h-9 rounded-full bg-red-50 text-[#FF5A50] border border-red-100/50 flex items-center justify-center font-black text-xs">!</div>
+              <div className="w-9 h-9 rounded-2xl bg-rose-50 text-rose-600 border border-rose-200/80 flex items-center justify-center font-black">
+                <AlertCircle className="w-5 h-5 text-rose-500" />
+              </div>
             </div>
 
             {/* ITEMIZED RUN ACTIVITY LOG */}
-            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 ml-1">
-              {t('itemized_receipts_label') || 'Itemized Ledger Receipts'}
-            </h3>
-            <div className="bg-white rounded-[28px] border border-slate-100 shadow-sm overflow-hidden divide-y divide-slate-50">
-              {activeTargetSales.map(sale => (
-                <div key={sale.id} className="p-5 flex justify-between items-center">
-                  <div>
-                    <p className="text-sm font-extrabold text-slate-800 tracking-tight uppercase">
-                      {sale.inventory?.name || t('product_item_fallback') || 'Product Item'}
-                    </p>
-                    <p className="text-[10px] text-slate-400 font-medium mt-0.5">
-                      {t('client_label') || 'Client'}: {sale.customer_name || t('direct_retail_fallback') || 'Direct Retail Counter'}
-                    </p>
+            <div>
+              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1 flex items-center gap-1.5">
+                <Receipt className="w-3.5 h-3.5 text-indigo-600" />
+                <span>{t('itemized_receipts_label') || 'Itemized Ledger Receipts'}</span>
+              </h3>
+              <div className="bg-white rounded-[28px] border border-slate-200/80 shadow-xs overflow-hidden divide-y divide-slate-100">
+                {activeTargetSales.map(sale => (
+                  <div key={sale.id} className="p-5 flex justify-between items-center hover:bg-slate-50/50 transition-colors">
+                    <div>
+                      <p className="text-sm font-extrabold text-slate-900 tracking-tight uppercase">
+                        {sale.inventory?.name || t('product_item_fallback') || 'Product Item'}
+                      </p>
+                      <p className="text-[10px] text-slate-400 font-medium mt-0.5">
+                        {t('client_label') || 'Client'}: {sale.customer_name || t('direct_retail_fallback') || 'Direct Retail Counter'}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className={`text-sm font-black tracking-tight ${sale.payment_status === 'paid' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {Math.floor(sale.total_amount || sale.total_price || 0).toLocaleString()} <span className="text-[9px] font-bold opacity-60">FCFA</span>
+                      </p>
+                      <p className={`text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md mt-1 inline-block ${
+                        sale.payment_status === 'paid' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80' : 'bg-rose-50 text-rose-600 border border-rose-200/80'
+                      }`}>
+                        {sale.payment_status === 'paid' ? (t('payment_status_paid') || 'paid') : (t('payment_status_debt') || 'debt')}
+                      </p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className={`text-sm font-black tracking-tight ${sale.payment_status === 'paid' ? 'text-emerald-600' : 'text-[#FF5A50]'}`}>
-                      {Math.floor(sale.total_amount || sale.total_price || 0).toLocaleString()} <span className="text-[9px] font-bold opacity-50">FCFA</span>
-                    </p>
-                    <p className={`text-[8px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded-md mt-1 inline-block ${
-                      sale.payment_status === 'paid' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-[#FF5A50]'
-                    }`}>
-                      {sale.payment_status === 'paid' ? (t('payment_status_paid') || 'paid') : (t('payment_status_debt') || 'debt')}
-                    </p>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
 
             {/* ACTION PRINT TRIGGER */}
             <button 
               onClick={() => window.print()} 
-              className="mt-6 w-full bg-[#1C1B1F] text-white py-4.5 rounded-2xl font-bold uppercase text-xs tracking-widest shadow-sm active:scale-[0.99] hover:opacity-90 transition-all"
+              className="w-full bg-slate-900 hover:bg-slate-950 text-white py-4 rounded-2xl font-black uppercase text-xs tracking-wider shadow-xs hover:shadow active:scale-[0.98] transition-all inline-flex items-center justify-center gap-2"
             >
-              {t('print_summary_btn') || 'Print Shift Receipt Summary 📄'}
+              <Printer className="w-4 h-4 text-indigo-400" />
+              <span>{t('print_summary_btn') || 'Print Shift Receipt Summary'}</span>
             </button>
           </div>
         )}

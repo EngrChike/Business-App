@@ -1,5 +1,22 @@
+// src/components/Reports.jsx
 import React, { useState, useEffect, useCallback } from 'react';
-import { useLanguage } from '../../context/LanguageContext.jsx'; // Connected to your global toggle engine
+import { 
+  ArrowLeft, 
+  Receipt, 
+  Printer, 
+  Globe, 
+  MapPin, 
+  TrendingUp, 
+  TrendingDown, 
+  AlertTriangle, 
+  CheckCircle2, 
+  Clock, 
+  ShieldCheck, 
+  Loader2, 
+  ClipboardList,
+  Building2
+} from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext.jsx';
 import { supabase } from '../../api/supabaseClient';
 
 export default function Reports({ onBack }) {
@@ -7,7 +24,7 @@ export default function Reports({ onBack }) {
   const [salesData, setSalesData] = useState([]);
   const [expenseData, setExpenseData] = useState([]);
   const [branches, setBranches] = useState([]);
-  const [selectedBranchId, setSelectedBranchId] = useState("all"); // Executive multi-branch filter state
+  const [selectedBranchId, setSelectedBranchId] = useState("all");
   const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -98,17 +115,16 @@ export default function Reports({ onBack }) {
 
   const handleSettle = async (sale) => {
     if (!isAdmin) {
-      alert(t('access_denied_msg') || "❌ Operational Access Denied: Only Admin can resolve accounts.");
+      alert(t('access_denied_msg') || "Operational Access Denied: Only Admin can resolve accounts.");
       return;
     }
 
-    // 🌟 FIX: total_amount tracks the changing remaining debt balance. total_price locks down the original transaction value.
     const currentAmount = Number(sale.total_amount || 0);
     const originalPrice = Number(sale.total_price || sale.total_amount || 0); 
     const clientIdentity = sale.customer_name || t('walking_customer') || "Walking Customer";
     
     const isComplete = window.confirm(
-      `💰 Debtor: ${clientIdentity}\nRemaining Balance: ${currentAmount.toLocaleString()} FCFA\nOriginal Value: ${originalPrice.toLocaleString()} FCFA\n\nIs this current payment COMPLETE? \n[Click OK for FULL SETTLEMENT, Cancel for a PARTIAL payment installment]`
+      `Debtor: ${clientIdentity}\nRemaining Balance: ${currentAmount.toLocaleString()} FCFA\nOriginal Value: ${originalPrice.toLocaleString()} FCFA\n\nIs this current payment COMPLETE? \n[Click OK for FULL SETTLEMENT, Cancel for a PARTIAL payment installment]`
     );
 
     let updateData = {};
@@ -119,7 +135,6 @@ export default function Reports({ onBack }) {
       );
       if (!confirmFull) return;
 
-      // 🌟 FIX: Restore total_amount back to the original full valuation so revenue tracking catches the complete amount
       updateData = { 
         payment_status: 'paid', 
         is_verified: true,
@@ -136,12 +151,12 @@ export default function Reports({ onBack }) {
       const amountPaid = Number(userInput);
 
       if (isNaN(amountPaid) || amountPaid <= 0) {
-        alert("❌ Invalid amount. Please enter a valid number greater than 0.");
+        alert("Invalid amount. Please enter a valid number greater than 0.");
         return;
       }
 
       if (amountPaid > currentAmount) {
-        alert(`❌ Error: Amount paid (${amountPaid.toLocaleString()} FCFA) cannot be higher than the remaining balance (${currentAmount.toLocaleString()} FCFA).`);
+        alert(`Error: Amount paid (${amountPaid.toLocaleString()} FCFA) cannot be higher than the remaining balance (${currentAmount.toLocaleString()} FCFA).`);
         return;
       }
 
@@ -153,7 +168,6 @@ export default function Reports({ onBack }) {
         );
         if (!confirmFullPartial) return;
         
-        // 🌟 FIX: Fully paid up, reset total_amount back to original contract anchor
         updateData = { 
           payment_status: 'paid', 
           is_verified: true,
@@ -165,7 +179,6 @@ export default function Reports({ onBack }) {
         );
         if (!confirmPartial) return;
 
-        // 🌟 FIX: Lower the floating total_amount debt tracker, but leave total_price completely untouched!
         updateData = { 
           total_amount: remainingBalance
         };
@@ -189,199 +202,243 @@ export default function Reports({ onBack }) {
     }
   };
 
-  // Metric Calculation Aggregations — 🌟 Updated to accurately scan calculated structural balances
+  // Metric Calculation Aggregations
   const totalRevenue = salesData.filter(s => s.payment_status === 'paid').reduce((sum, s) => sum + Number(s.total_amount || 0), 0);
   const totalDebt = salesData.filter(s => s.payment_status === 'debt').reduce((sum, s) => sum + Number(s.total_amount || 0), 0);
   const totalExpenses = expenseData.reduce((sum, e) => sum + Number(e.amount || 0), 0);
   const netProfit = totalRevenue - totalExpenses;
 
+  // Helper to sanitize translation string emojis for clean UI rendering
+  const cleanTranslation = (key, fallback) => {
+    const raw = t(key) || fallback;
+    return raw.replace(/[\u{1F300}-\u{1F9FF}]/gu, '').replace(/[📄✅❌💰🌐📍⏳✓]/g, '').trim();
+  };
+
   return (
-    <div className="min-h-screen bg-[#F4F3ED] p-4 md:p-8 font-sans text-[#1C1B1F] pb-24">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans text-slate-800 pb-24 max-w-6xl mx-auto antialiased">
+      
+      {/* HEADER HUB WITH BRANCH CONTROLS & PRINT ACTION */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 border-b border-slate-200/80 pb-5">
+        <div>
+          <button 
+            onClick={onBack} 
+            className="inline-flex items-center gap-1.5 text-indigo-600 font-extrabold uppercase text-xs hover:text-indigo-700 transition-colors py-1 px-2.5 rounded-lg hover:bg-indigo-50 mb-1"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>{t('back')}</span>
+          </button>
+          <h1 className="text-xl md:text-2xl font-black italic uppercase tracking-tight text-slate-900 flex items-center gap-2">
+            <Receipt className="w-6 h-6 text-indigo-600 not-italic shrink-0" />
+            <span>{t('service_ops') || "Service Operations"}</span>
+          </h1>
+          <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mt-0.5">
+            Audit & Compliance Ledger
+          </p>
+        </div>
         
-        {/* --- DYNAMIC HEADER HUB --- */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-          <div>
-            <button 
-              onClick={onBack} 
-              className="text-[#3F51B5] font-bold text-xs tracking-wider uppercase mb-1 flex items-center gap-1 hover:opacity-80 transition-opacity"
-            >
-              {t('back')}
-            </button>
-            <h1 className="text-2xl md:text-3xl font-black tracking-tight text-[#111111]">
-              {t('service_ops') || "Service Operations"}
-            </h1>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-0.5">
-              Audit & Compliance Ledger
-            </p>
-          </div>
-          
-          <div className="w-full md:w-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-            {isAdmin && (
+        <div className="w-full md:w-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          {isAdmin && (
+            <div className="relative flex-1 sm:w-72">
               <select
                 value={selectedBranchId}
                 onChange={(e) => setSelectedBranchId(e.target.value)}
-                className="bg-white border border-slate-200 text-slate-800 font-bold text-xs rounded-2xl px-4 py-3.5 shadow-sm outline-none tracking-wide focus:border-slate-300 transition-all"
+                className="w-full bg-white border border-slate-200 text-slate-800 font-extrabold text-xs rounded-2xl px-4 py-3 shadow-xs outline-none tracking-wide focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all uppercase cursor-pointer"
               >
-                <option value="all">🌐 Across All Branches (Global Consolidated)</option>
+                <option value="all">Global Consolidated (All Branches)</option>
                 {branches.map(b => (
-                  <option key={b.id} value={b.id}>📍 {b.name}</option>
+                  <option key={b.id} value={b.id}>Station: {b.name}</option>
                 ))}
               </select>
-            )}
+            </div>
+          )}
 
-            <button 
-              onClick={() => window.print()}
-              className="bg-[#1C1B1F] text-[#F4F3ED] px-6 py-3.5 rounded-2xl font-bold text-xs uppercase tracking-widest shadow-sm hover:opacity-90 transition-all active:scale-98 text-center"
-            >
-              {t('print_summary_btn') ? t('print_summary_btn').replace('📄', '') : "Print Statement"}
-            </button>
+          <button 
+            onClick={() => window.print()}
+            className="bg-slate-900 hover:bg-slate-950 text-white px-5 py-3 rounded-2xl font-black text-xs uppercase tracking-wider shadow-xs hover:shadow active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+          >
+            <Printer className="w-4 h-4 text-indigo-400" />
+            <span>{cleanTranslation('print_summary_btn', 'Print Statement')}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* LOADING STATE MASK */}
+      {loading && (
+        <div className="min-h-[280px] bg-white rounded-[32px] border border-slate-200/80 p-12 flex flex-col items-center justify-center text-xs font-black uppercase text-slate-400 tracking-widest gap-3 shadow-xs my-6">
+          <Loader2 className="w-7 h-7 animate-spin text-indigo-600" />
+          <span>{t('loading') || "Loading Ledger Audit Data..."}</span>
+        </div>
+      )}
+
+      {/* METRICS SUMMARY GRID */}
+      {!loading && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          
+          {/* INFLOW */}
+          <div className="bg-white p-6 rounded-[28px] shadow-xs border border-slate-200/80 flex flex-col justify-between min-h-[136px] transition-all hover:border-slate-300">
+            <div className="flex justify-between items-center">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Verified Inflow</span>
+              <div className="p-2 bg-emerald-50 rounded-xl text-emerald-600">
+                <TrendingUp className="w-4 h-4" />
+              </div>
+            </div>
+            <div>
+              <span className="text-2xl font-black tracking-tight text-slate-900">{totalRevenue.toLocaleString()}</span>
+              <span className="text-xs font-extrabold text-slate-400 ml-1.5">FCFA</span>
+            </div>
+          </div>
+
+          {/* OUTFLOW */}
+          <div className="bg-white p-6 rounded-[28px] shadow-xs border border-slate-200/80 flex flex-col justify-between min-h-[136px] transition-all hover:border-slate-300">
+            <div className="flex justify-between items-center">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Operational Outflow</span>
+              <div className="p-2 bg-rose-50 rounded-xl text-rose-600">
+                <TrendingDown className="w-4 h-4" />
+              </div>
+            </div>
+            <div>
+              <span className="text-2xl font-black tracking-tight text-rose-600">-{totalExpenses.toLocaleString()}</span>
+              <span className="text-xs font-extrabold text-slate-400 ml-1.5">FCFA</span>
+            </div>
+          </div>
+
+          {/* DEBT */}
+          <div className="bg-rose-50/60 p-6 rounded-[28px] shadow-xs border border-rose-100 flex flex-col justify-between min-h-[136px] transition-all hover:border-rose-200">
+            <div className="flex justify-between items-center">
+              <span className="text-[10px] font-black text-rose-600 uppercase tracking-widest">Uncollected Debt</span>
+              <span className="bg-rose-600 text-white text-[9px] font-black tracking-wider px-2.5 py-1 rounded-lg uppercase flex items-center gap-1 shadow-xs">
+                <AlertTriangle className="w-3 h-3" />
+                <span>{cleanTranslation('critical_stock', 'ACTION REQ')}</span>
+              </span>
+            </div>
+            <div>
+              <span className="text-2xl font-black tracking-tight text-rose-600">{totalDebt.toLocaleString()}</span>
+              <span className="text-xs font-extrabold text-rose-400 ml-1.5">FCFA</span>
+            </div>
+          </div>
+
+          {/* PROFIT */}
+          <div className="bg-emerald-50/60 p-6 rounded-[28px] shadow-xs border border-emerald-100 flex flex-col justify-between min-h-[136px] transition-all hover:border-emerald-200">
+            <div className="flex justify-between items-center">
+              <span className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">Net Disposable Profit</span>
+              <div className="p-2 bg-emerald-100/70 rounded-xl text-emerald-700">
+                <ShieldCheck className="w-4 h-4" />
+              </div>
+            </div>
+            <div>
+              <span className="text-2xl font-black tracking-tight text-emerald-800">{netProfit.toLocaleString()}</span>
+              <span className="text-xs font-extrabold text-emerald-600 opacity-80 ml-1.5">FCFA</span>
+            </div>
+          </div>
+
+        </div>
+      )}
+
+      {/* TRANSACTION REGISTRY TABLE */}
+      {!loading && (
+        <div className="bg-white rounded-[32px] border border-slate-200/80 shadow-xs overflow-hidden">
+          <div className="p-6 bg-white border-b border-slate-100 flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <ClipboardList className="w-4 h-4 text-indigo-600" />
+              <span className="text-xs font-black text-slate-900 uppercase tracking-wider">Transaction Registry</span>
+            </div>
+            <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-100 px-3 py-1 rounded-full">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span className="text-[9px] font-black text-emerald-700 uppercase tracking-widest">Live Audit Active</span>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 bg-slate-50/60">
+                  <th className="p-5">Date & Time</th>
+                  <th className="p-5">Type</th>
+                  <th className="p-5">Entity Description</th>
+                  <th className="p-5 text-right">Value Amount</th>
+                  <th className="p-5 text-center">Ledger Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {[...salesData, ...expenseData.map(e => ({...e, isExpense: true}))]
+                  .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+                  .map((item, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                      
+                      {/* DATE */}
+                      <td className="p-5 text-xs font-bold text-slate-700">
+                        {new Date(item.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })} 
+                        <span className="block text-[10px] text-slate-400 font-semibold mt-0.5">
+                          {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </td>
+                      
+                      {/* TYPE */}
+                      <td className="p-5">
+                        <span className={`text-[9px] font-black px-2.5 py-1 rounded-lg tracking-wider border ${
+                          item.isExpense ? 'bg-rose-50 border-rose-100 text-rose-600' : 'bg-indigo-50 border-indigo-100 text-indigo-600'
+                        }`}>
+                          {item.isExpense ? 'EXPENSE' : 'SALE'}
+                        </span>
+                      </td>
+
+                      {/* DESCRIPTION & PARTIAL TRACKING */}
+                      <td className="p-5 font-extrabold text-slate-800 text-sm tracking-tight">
+                        {item.isExpense 
+                          ? (t(`cat_${item.category?.toLowerCase().replace(' ', '_')}`) || item.category) 
+                          : (item.inventory?.name || t('product_item_fallback') || 'Product Item')
+                        }
+                        {!item.isExpense && (
+                          <span className="block text-[10px] text-slate-400 font-bold normal-case mt-0.5">
+                            {t('client_label') || 'Client'}: {item.customer_name || t('walking_customer') || 'Walking Customer'}
+                          </span>
+                        )}
+                        {!item.isExpense && item.payment_status === 'debt' && Number(item.total_amount) < Number(item.total_price) && (
+                          <span className="mt-1.5 inline-flex items-center gap-1.5 text-[10px] text-indigo-700 font-black bg-indigo-50 border border-indigo-100/80 px-2.5 py-1 rounded-xl">
+                            <Clock className="w-3 h-3 text-indigo-600 shrink-0" />
+                            <span>Collected: {(Number(item.total_price) - Number(item.total_amount)).toLocaleString()} / Total: {Number(item.total_price).toLocaleString()} FCFA</span>
+                          </span>
+                        )}
+                      </td>
+
+                      {/* AMOUNT */}
+                      <td className={`p-5 text-right font-black text-sm tracking-tight ${item.isExpense ? 'text-rose-600' : 'text-slate-900'}`}>
+                        {item.isExpense ? '-' : '+'}{Math.floor(item.amount || item.total_amount || 0).toLocaleString()}
+                      </td>
+
+                      {/* ACTION / STATUS BADGE */}
+                      <td className="p-5 text-center">
+                        {item.payment_status === 'debt' ? (
+                          isAdmin ? (
+                            <button 
+                              onClick={() => handleSettle(item)} 
+                              className="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black px-3.5 py-2 rounded-xl shadow-xs active:scale-95 transition-all uppercase tracking-wider inline-flex items-center gap-1.5"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>{cleanTranslation('clear_total_balance_btn', 'Settle Account')}</span>
+                            </button>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-rose-600 font-black text-[10px] uppercase tracking-wider bg-rose-50 border border-rose-100 px-2.5 py-1 rounded-xl">
+                              <AlertTriangle className="w-3 h-3 text-rose-500" />
+                              <span>{t('payment_status_debt') || "Debt"}</span>
+                            </span>
+                          )
+                        ) : (
+                          <div className="inline-flex items-center justify-center gap-1.5 text-emerald-600 font-black text-xs uppercase tracking-wide bg-emerald-50/80 border border-emerald-100 px-3 py-1.5 rounded-xl">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            <span>Secure</span>
+                          </div>
+                        )}
+                      </td>
+
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
           </div>
         </div>
+      )}
 
-        {/* LOADING ENGINE MASK */}
-        {loading && (
-          <div className="text-center py-16 flex flex-col items-center justify-center gap-2">
-            <div className="h-5 w-5 border-2 border-[#3F51B5] border-t-transparent rounded-full animate-spin"></div>
-            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{t('loading')}</p>
-          </div>
-        )}
-
-        {/* --- METRICS GRID --- */}
-        {!loading && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
-            <div className="bg-white p-6 rounded-[24px] shadow-sm border border-slate-100 flex flex-col justify-between min-h-[128px]">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Verified Inflow</span>
-              <div>
-                <span className="text-2xl font-black tracking-tight text-slate-900">{totalRevenue.toLocaleString()}</span>
-                <span className="text-xs font-bold text-slate-400 ml-1">FCFA</span>
-              </div>
-            </div>
-
-            <div className="bg-white p-6 rounded-[24px] shadow-sm border border-slate-100 flex flex-col justify-between min-h-[128px]">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Operational Outflow</span>
-              <div>
-                <span className="text-2xl font-black tracking-tight text-slate-800">-{totalExpenses.toLocaleString()}</span>
-                <span className="text-xs font-bold text-slate-400 ml-1">FCFA</span>
-              </div>
-            </div>
-
-            <div className="bg-[#FFEBEA] p-6 rounded-[24px] flex flex-col justify-between min-h-[128px] border border-[#FFD0CD]">
-              <div className="flex justify-between items-center">
-                <span className="text-[10px] font-bold text-[#FF5A50] uppercase tracking-widest">Uncollected Debt</span>
-                <span className="bg-[#FF5A50] text-white text-[8px] font-black tracking-wider px-2 py-0.5 rounded-md uppercase">
-                  {t('critical_stock') || "ACTION REQ"}
-                </span>
-              </div>
-              <div>
-                <span className="text-2xl font-black tracking-tight text-[#FF5A50]">{totalDebt.toLocaleString()}</span>
-                <span className="text-xs font-bold text-[#FF5A50] opacity-70 ml-1">FCFA</span>
-              </div>
-            </div>
-
-            <div className="bg-[#E8F5E9] p-6 rounded-[24px] border border-[#C8E6C9] flex flex-col justify-between min-h-[128px]">
-              <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-widest">Net Disposable Profit</span>
-              <div>
-                <span className="text-2xl font-black tracking-tight text-emerald-700">{netProfit.toLocaleString()}</span>
-                <span className="text-xs font-bold text-emerald-600 opacity-70 ml-1">FCFA</span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* --- UNIFIED TRANSACTION LEDGER REGISTRY --- */}
-        {!loading && (
-          <div className="bg-white rounded-[28px] border border-slate-100 shadow-sm overflow-hidden">
-            <div className="p-6 bg-white border-b border-slate-50 flex justify-between items-center">
-              <span className="text-xs font-black text-slate-800 uppercase tracking-wider">Transaction Registry</span>
-              <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Live Audit Active</span>
-              </div>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="text-[9px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 bg-slate-50/50">
-                    <th className="p-5">Date & Time</th>
-                    <th className="p-5">Type</th>
-                    <th className="p-5">Entity Description</th>
-                    <th className="p-5 text-right">Value Amount</th>
-                    <th className="p-5 text-center">Ledger Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {[...salesData, ...expenseData.map(e => ({...e, isExpense: true}))]
-                    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-                    .map((item, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50/30 transition-colors">
-                        <td className="p-5 text-xs font-semibold text-slate-600">
-                          {new Date(item.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })} 
-                          <span className="block text-[10px] text-slate-400 font-normal mt-0.5">
-                            {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        </td>
-                        
-                        <td className="p-5">
-                          <span className={`text-[9px] font-black px-2.5 py-1 rounded-md tracking-wider ${
-                            item.isExpense ? 'bg-red-50 text-[#FF5A50]' : 'bg-indigo-50 text-[#3F51B5]'
-                          }`}>
-                            {item.isExpense ? 'EXPENSE' : 'SALE'}
-                          </span>
-                        </td>
-
-                        <td className="p-5 font-bold text-slate-800 text-sm tracking-tight">
-                          {item.isExpense 
-                            ? (t(`cat_${item.category?.toLowerCase().replace(' ', '_')}`) || item.category) 
-                            : (item.inventory?.name || t('product_item_fallback') || 'Product Item')
-                          }
-                          {!item.isExpense && (
-                            <span className="block text-[10px] text-slate-400 font-medium normal-case mt-0.5">
-                              {t('client_label') || 'Client'}: {item.customer_name || t('walking_customer') || 'Walking Customer'}
-                            </span>
-                          )}
-                          {/* 🌟 USER INTERFACE ADDITION: Clear progressive visibility metrics for multi-stage payments */}
-                          {!item.isExpense && item.payment_status === 'debt' && Number(item.total_amount) < Number(item.total_price) && (
-                            <span className="block text-[10px] text-indigo-600 font-black normal-case mt-1 bg-indigo-50/50 px-2 py-0.5 rounded-md inline-block">
-                              ⏳ Collected: {(Number(item.total_price) - Number(item.total_amount)).toLocaleString()} / Contract Total: {Number(item.total_price).toLocaleString()} FCFA
-                            </span>
-                          )}
-                        </td>
-
-                        <td className={`p-5 text-right font-black text-sm tracking-tight ${item.isExpense ? 'text-[#FF5A50]' : 'text-slate-900'}`}>
-                          {item.isExpense ? '-' : '+'}{Math.floor(item.amount || item.total_amount || 0).toLocaleString()}
-                        </td>
-
-                        <td className="p-5 text-center">
-                          {item.payment_status === 'debt' ? (
-                            isAdmin ? (
-                              <button 
-                                onClick={() => handleSettle(item)} 
-                                className="bg-[#3F51B5] text-white text-[10px] font-bold px-4 py-2 rounded-xl shadow-sm hover:opacity-90 active:scale-95 transition-all uppercase tracking-wider"
-                              >
-                                {t('clear_total_balance_btn') ? t('clear_total_balance_btn').replace('✅', '') : "Settle Account"}
-                              </button>
-                            ) : (
-                              <span className="text-[#FF5A50] font-bold text-[10px] uppercase tracking-wider bg-red-50 px-2.5 py-1 rounded-md">
-                                {t('payment_status_debt') || "Debt"}
-                              </span>
-                            )
-                          ) : (
-                            <div className="flex items-center justify-center gap-1 text-emerald-600 font-bold text-xs uppercase tracking-wide">
-                              <span>✓</span> Secure
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-      </div>
     </div>
   );
 }

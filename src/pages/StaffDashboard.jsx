@@ -1,13 +1,23 @@
 // src/pages/StaffDashboard.jsx
 import React, { useState, useEffect, useRef } from 'react';
+import { 
+  MapPin, 
+  Globe, 
+  User, 
+  LogOut, 
+  ShoppingCart, 
+  ChevronRight, 
+  Store, 
+  Sparkles 
+} from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext.jsx'; 
-import { useAuth } from '../context/AuthContext.jsx'; // Added to listen to the user's assigned branch identity
+import { useAuth } from '../context/AuthContext.jsx'; 
 import { supabase } from '../api/supabaseClient';
 import Sales from '../views/staff/Sales.jsx'; 
 
 export default function StaffDashboard() {
   const { language, toggleLanguage, t } = useLanguage(); 
-  const { branchId } = useAuth(); // Safely reads the branch assigned to this staff member by Admin
+  const { branchId, signOut } = useAuth(); // Reads assigned branch identity & centralized sign out handler
   const [view, setView] = useState('menu');
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -35,7 +45,6 @@ export default function StaffDashboard() {
     if (user) {
       let assignedBranchName = 'No Branch Assigned';
       
-      // If the staff member has a branch_id, look up its actual name for the header display
       if (branchId) {
         const { data: branchData } = await supabase
           .from('branches')
@@ -48,7 +57,7 @@ export default function StaffDashboard() {
       }
 
       setStaffProfile({
-        name: user.user_metadata?.full_name || 'Staff Terminal',
+        name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Staff Terminal',
         email: user.email,
         branchName: assignedBranchName
       });
@@ -57,7 +66,6 @@ export default function StaffDashboard() {
 
   // ROUTING NAVIGATION PATHS
   if (view === 'sales') {
-    // Passes the branchId constraint down to Sales so transactions are logged to the correct branch counter
     return <Sales branchId={branchId} onBack={() => setView('menu')} />;
   }
 
@@ -65,62 +73,72 @@ export default function StaffDashboard() {
     <div className="min-h-screen bg-[#F4F3ED] text-[#111111] p-4 md:p-8 font-sans antialiased">
       <div className="max-w-md mx-auto">
         
-        {/* --- PREMIUM STAFF HEADER --- */}
-        <div className="flex justify-between items-center mb-10 mt-4 relative">
+        {/* --- EXECUTIVE STAFF HEADER --- */}
+        <div className="flex justify-between items-center mb-8 mt-2 relative">
           <div>
-            <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mb-1">
-              {staffProfile.branchName} 📍
-            </p>
-            <h1 className="text-2xl font-black tracking-tight text-[#111111]">
-              Service <span className="text-[#3F51B5]">Pro</span>
+            <div className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase text-indigo-700 bg-indigo-50 border border-indigo-100/80 px-2.5 py-0.5 rounded-full tracking-wider mb-1.5 shadow-sm">
+              <MapPin className="w-3 h-3 text-indigo-600" />
+              <span>{staffProfile.branchName}</span>
+            </div>
+            <h1 className="text-2xl font-black tracking-tight text-slate-900 flex items-center gap-1.5">
+              <span>Service</span>
+              <span className="text-indigo-600 flex items-center gap-1">
+                Pro <Sparkles className="w-4 h-4 text-amber-500 fill-amber-500" />
+              </span>
             </h1>
           </div>
           
-          <div className="flex items-center gap-3" ref={dropdownRef}>
+          <div className="flex items-center gap-2.5" ref={dropdownRef}>
+            {/* Language Switcher */}
             <button 
               type="button"
               onClick={() => toggleLanguage()} 
-              className="bg-white border border-slate-200 px-3 py-2 rounded-xl hover:bg-slate-50 transition-all active:scale-95 shadow-sm"
+              className="inline-flex items-center gap-1.5 bg-white border border-slate-200/80 px-3 py-2 rounded-2xl hover:bg-slate-50 transition-all active:scale-95 shadow-sm text-slate-700"
             >
-              <span className="font-bold text-xs tracking-tight text-slate-700">
-                {language === 'en' ? '🇬🇧 EN' : '🇫🇷 FR'}
+              <Globe className="w-3.5 h-3.5 text-indigo-600" />
+              <span className="font-extrabold text-xs tracking-tight uppercase">
+                {language === 'en' ? 'EN' : 'FR'}
               </span>
             </button>
 
+            {/* Profile Avatar & Dropdown */}
             <div className="relative">
               <button 
                 type="button"
                 onClick={() => setIsProfileOpen(!isProfileOpen)}
-                className="flex items-center justify-center h-10 w-10 rounded-full bg-[#1C1B1F] text-white font-black text-sm uppercase shadow-md active:scale-95 transition-all"
+                className="flex items-center justify-center h-10 w-10 rounded-2xl bg-slate-950 text-white font-black text-sm uppercase shadow-md hover:bg-indigo-600 active:scale-95 transition-all border border-slate-800"
               >
                 {staffProfile.name.charAt(0)}
               </button>
 
               {isProfileOpen && (
-                <div className="absolute right-0 top-12 w-60 bg-white border border-slate-100 rounded-[22px] shadow-xl p-4 z-50">
+                <div className="absolute right-0 top-12 w-64 bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-[24px] shadow-xl p-4 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
                   <div className="pb-3 border-b border-slate-100">
-                    <p className="text-xs font-black text-slate-800 truncate">{staffProfile.name}</p>
+                    <p className="text-xs font-black text-slate-900 truncate">{staffProfile.name}</p>
                     <p className="text-[10px] font-medium text-slate-400 truncate mt-0.5">{staffProfile.email}</p>
-                    <span className="inline-flex items-center gap-1 mt-2 text-[9px] font-extrabold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">
-                      📍 {staffProfile.branchName}
-                    </span>
+                    <div className="inline-flex items-center gap-1 mt-2 text-[9px] font-black text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md">
+                      <Store className="w-3 h-3 text-indigo-600" />
+                      <span>{staffProfile.branchName}</span>
+                    </div>
                   </div>
                   
                   <div className="pt-2 flex flex-col gap-1">
                     <button 
                       type="button"
                       onClick={() => toggleLanguage()}
-                      className="flex w-full text-left px-2 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 rounded-xl transition-colors"
+                      className="flex items-center gap-2.5 w-full text-left px-3 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 rounded-xl transition-colors"
                     >
-                      🌐 {language === 'en' ? 'Changer en Français' : 'Switch to English'}
+                      <Globe className="w-4 h-4 text-slate-400" />
+                      <span>{language === 'en' ? 'Changer en Français' : 'Switch to English'}</span>
                     </button>
 
                     <button 
                       type="button"
-                      onClick={() => supabase.auth.signOut()} 
-                      className="w-full text-left px-2 py-2 text-xs font-bold text-[#FF5A50] hover:bg-red-50 rounded-xl transition-colors flex items-center gap-2"
+                      onClick={() => signOut()} 
+                      className="flex items-center gap-2.5 w-full text-left px-3 py-2.5 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
                     >
-                      <span>🚪</span> {t('sign_out')}
+                      <LogOut className="w-4 h-4 text-rose-500" />
+                      <span>{t('sign_out') || 'Sign Out'}</span>
                     </button>
                   </div>
                 </div>
@@ -129,19 +147,30 @@ export default function StaffDashboard() {
           </div>
         </div>
 
-        {/* --- NAVIGATION LINKS --- */}
+        {/* --- NAVIGATION TERMINAL ACTION CONSOLE --- */}
         <div className="space-y-4">
-          {/* New Sale Button */}
           <button 
             type="button"
             onClick={() => setView('sales')} 
-            className="w-full bg-white border border-slate-100 p-6 rounded-[28px] shadow-sm text-left flex justify-between items-center group transition-all hover:scale-[1.01] active:scale-98"
+            className="w-full bg-white border border-slate-200/80 hover:border-indigo-400/80 p-6 rounded-[28px] shadow-sm hover:shadow-md text-left flex justify-between items-center group transition-all active:scale-[0.99] border-l-4 border-l-indigo-600"
           >
-            <div>
-              <h2 className="text-lg font-extrabold tracking-tight text-slate-900">{t('sales_terminal')}</h2>
-              <p className="text-slate-400 text-[11px] font-medium uppercase tracking-wider mt-0.5">{t('register_counters')}</p>
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 bg-indigo-50 border border-indigo-100 rounded-2xl flex items-center justify-center text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-all shrink-0">
+                <ShoppingCart className="w-7 h-7" />
+              </div>
+              <div>
+                <h2 className="text-base font-black tracking-tight text-slate-900 uppercase group-hover:text-indigo-600 transition-colors">
+                  {t('sales_terminal') || 'Sales Terminal'}
+                </h2>
+                <p className="text-slate-400 text-[11px] font-bold uppercase tracking-wider mt-0.5">
+                  {t('register_counters') || 'Register Transactions'}
+                </p>
+              </div>
             </div>
-            <span className="text-2xl bg-indigo-50 p-3 rounded-2xl group-hover:scale-110 transition-transform shadow-sm">🛒</span>
+
+            <div className="w-9 h-9 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-all shrink-0 ml-2">
+              <ChevronRight className="w-5 h-5 group-hover:translate-x-0.5 transition-transform" />
+            </div>
           </button>
         </div>
 

@@ -1,11 +1,9 @@
-// src/context/AuthContext.jsx
-import React, { createContext, useContext, useEffect, useState, useMemo, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { supabase } from '../api/supabaseClient.js';
 
 const AuthContext = createContext(null);
 
-// ⏱️ CONFIGURATION: Set the maximum inactivity time limit here
-// 5 * 60 * 1000 = 5 Minutes
+// ⏱️ CONFIGURATION: Set the maximum inactivity time limit (5 Minutes)
 const INACTIVITY_LIMIT = 5 * 60 * 1000; 
 
 export const AuthProvider = ({ children }) => {
@@ -14,28 +12,26 @@ export const AuthProvider = ({ children }) => {
   const [selectedBranch, setSelectedBranch] = useState(null); 
   const [loading, setLoading] = useState(true);
 
-  // Reference pointer to track the active background countdown timer
+  // Reference pointers for background timers & event throttling
   const inactivityTimeoutRef = useRef(null);
+  const lastActivityTimestamp = useRef(Date.now());
 
   /**
    * Mobile Device Refresh Interceptor
-   * Runs exactly once when the application launches or reloads.
-   * If on a mobile device, it clears any active view states to return to the core dashboard.
+   * Runs once on launch. Clears sub-view history keys on mobile reloads.
    */
   useEffect(() => {
     const isMobileDevice = window.innerWidth <= 768 || /Mobi|Android|iPhone/i.test(navigator.userAgent);
     
     if (isMobileDevice) {
-      console.log("Mobile device reload detected. Resetting navigation back to root dashboard view context.");
+      console.log("Mobile reload detected. Resetting navigation tracking keys.");
       
-      // Clear common storage items used to track opened sub-views (like BulkStock view)
       const viewTrackingKeys = ['activeView', 'currentView', 'selectedView', 'viewState', 'activeTab', 'currentTab'];
       viewTrackingKeys.forEach(key => {
         localStorage.removeItem(key);
         sessionStorage.removeItem(key);
       });
 
-      // If the app uses standard URL hash mapping, push back to primary root view safely
       if (window.location.hash && window.location.hash !== '#/' && window.location.hash !== '#') {
         window.location.hash = '#/';
       }
@@ -43,8 +39,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   /**
-   * Fetches backend profile database keys with an instant high-priority administrative 
-   * email override bypass to break circular RLS lookup loop locks.
+   * Fetches backend profile data with administrative bypass rule
    */
   const fetchUserProfileMetadata = async (userId, userEmail) => {
     if (userEmail?.toLowerCase() === 'donchike21@gmail.com') {
@@ -72,7 +67,7 @@ export const AuthProvider = ({ children }) => {
         };
       }
     } catch (err) {
-      console.error("Failed to read user profile table gracefully:", err);
+      console.error("Failed to read user profile metadata:", err);
     }
     
     return { role: 'staff', branch_id: null, is_active: true };
@@ -80,19 +75,16 @@ export const AuthProvider = ({ children }) => {
 
   /**
    * Centralized application-wide sign-out engine.
-   * Clears state instantly to prevent protected route leakage.
    */
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     setLoading(true);
-    // Clear inactivity timer immediately on intentional sign-out execution
     if (inactivityTimeoutRef.current) clearTimeout(inactivityTimeoutRef.current);
     
     try {
       await supabase.auth.signOut();
     } catch (err) {
-      console.error("Error executing application sign out:", err);
+      console.error("Error executing sign out:", err);
     } finally {
-      // 🔴 TOTAL HARD CLEAR: Wipes react states and browser storage caches
       localStorage.clear();
       sessionStorage.clear();
       setUser(null);
@@ -100,31 +92,36 @@ export const AuthProvider = ({ children }) => {
       setSelectedBranch(null);
       setLoading(false);
     }
-  };
+  }, []);
 
-  // --- 🔄 INACTIVITY TIMER ENGINE ---
-  const resetInactivityTimer = () => {
-    // Drop the previous running countdown
+  // --- 🔄 THROTTLED INACTIVITY TIMER ENGINE ---
+  const resetInactivityTimer = useCallback(() => {
+    const now = Date.now();
+    // Throttle checks to once every 2 seconds to keep 60fps performance on high-frequency touch/move events
+    if (now - lastActivityTimestamp.current < 2000 && inactivityTimeoutRef.current) {
+      return;
+    }
+    lastActivityTimestamp.current = now;
+
     if (inactivityTimeoutRef.current) clearTimeout(inactivityTimeoutRef.current);
 
-    // Only set countdown loop if an authorized user is actively logged into the terminal
     if (user) {
-      inactivityTimeoutRef.current = setTimeout(() => {
-        console.warn("Inactivity limit breached. Triggering structural auto-logout sequence.");
-        signOut();
-        alert("🔒 Session Expired: You have been logged out due to inactivity.");
+      inactivityTimeoutRef.current = setTimeout(async () => {
+        console.warn("Inactivity limit breached. Triggering auto-logout sequence.");
+        await signOut();
+        setTimeout(() => {
+          alert("🔒 Session Expired: You have been logged out due to inactivity.");
+        }, 100);
       }, INACTIVITY_LIMIT);
     }
-  };
+  }, [user, signOut]);
 
-  // Listen for user interactions to reset the inactivity countdown clock
+  // Attach touch & mouse event listeners for active session tracking
   useEffect(() => {
-    // Enhanced touch and movement handlers specifically for tracking active mobile inputs accurately
     const interactionEvents = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart', 'touchmove', 'pointerdown'];
 
     if (user) {
       resetInactivityTimer();
-      
       interactionEvents.forEach(eventType => {
         window.addEventListener(eventType, resetInactivityTimer, { passive: true });
       });
@@ -136,51 +133,16 @@ export const AuthProvider = ({ children }) => {
         window.removeEventListener(eventType, resetInactivityTimer);
       });
     };
-  }, [user]);
+  }, [user, resetInactivityTimer]);
 
-
-  // --- 🛡️ CORE AUTH TRACKER & LIFE CYCLE ENGINE ---
+  // --- 🛡️ UNIFIED AUTH LIFECYCLE ENGINE ---
   useEffect(() => {
     let isMounted = true;
 
-    // ⚡ FIXED LOADING LOOP: Explicitly check for an active recovery session right at startup
-    const checkInitialSession = async () => {
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        if (error || !session) {
-          if (isMounted) {
-            setUser(null);
-            setLoading(false); // Explicitly kill the loading freeze if the session is dead
-          }
-          return;
-        }
-        
-        if (session?.user && isMounted) {
-          const meta = await fetchUserProfileMetadata(session.user.id, session.user.email);
-          if (isMounted) {
-            if (meta.is_active === false) {
-              await signOut();
-            } else {
-              setUser(session.user);
-              setProfile(meta);
-              setSelectedBranch(meta.branch_id || null);
-            }
-          }
-        }
-      } catch (err) {
-        console.error("Initial session clearance crash:", err);
-      } finally {
-        if (isMounted) setLoading(false); // Safety gate guarantee
-      }
-    };
-
-    checkInitialSession();
-
-    // Unified Auth event listener handling changes, token refreshes, and drops
+    // Single source of truth auth listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!isMounted) return;
-      
-      // Only flicker loading for valid logins/transitions to prevent stuck loops during background token checks
+
       if (event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY') {
         setLoading(true);
       }
@@ -191,13 +153,7 @@ export const AuthProvider = ({ children }) => {
           
           if (isMounted) {
             if (meta.is_active === false) {
-              // Instantly evict suspended users
-              await supabase.auth.signOut();
-              localStorage.clear();
-              sessionStorage.clear();
-              setUser(null);
-              setProfile({ role: null, branch_id: null, is_active: true });
-              setSelectedBranch(null);
+              await signOut();
             } else {
               setUser(session.user);
               setProfile(meta);
@@ -211,17 +167,14 @@ export const AuthProvider = ({ children }) => {
             }
           }
         } else {
-          // Clean state wipe if session dropped completely or token expired while user was away
           if (isMounted) {
-            localStorage.clear();
-            sessionStorage.clear();
             setUser(null);
             setProfile({ role: null, branch_id: null, is_active: true });
             setSelectedBranch(null);
           }
         }
       } catch (err) {
-        console.error("Auth System Event Synchronization Error:", err);
+        console.error("Auth Event Synchronization Error:", err);
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -231,7 +184,7 @@ export const AuthProvider = ({ children }) => {
       isMounted = false;
       if (subscription) subscription.unsubscribe();
     };
-  }, []); 
+  }, [signOut]); 
 
   const contextValue = useMemo(() => ({
     user, 
@@ -244,7 +197,7 @@ export const AuthProvider = ({ children }) => {
     authenticated: !!user,
     loading,                      
     signOut   
-  }), [user, profile, selectedBranch, loading]);
+  }), [user, profile, selectedBranch, loading, signOut]);
 
   return (
     <AuthContext.Provider value={contextValue}>

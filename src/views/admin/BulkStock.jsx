@@ -1,5 +1,21 @@
 // src/views/admin/BulkStock.jsx
 import React, { useState, useEffect, useCallback } from 'react';
+import { 
+  ArrowLeft, 
+  Package, 
+  Plus, 
+  MinusCircle, 
+  PlusCircle, 
+  Edit3, 
+  Trash2, 
+  Lock, 
+  Clock, 
+  Activity,
+  Check,
+  X,
+  PackagePlus,
+  Layers
+} from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { supabase } from '../../api/supabaseClient.js';
@@ -356,8 +372,9 @@ export default function BulkStock({ onBack, refreshMetrics }) {
   if (checkingRole) {
     return (
       <div className="min-h-screen bg-[#F4F3ED] flex items-center justify-center">
-        <div className="text-center font-bold text-slate-400 animate-pulse text-xs uppercase tracking-widest">
-          Synchronizing Security Ledger Registers...
+        <div className="text-center font-bold text-slate-400 animate-pulse text-xs uppercase tracking-widest flex items-center gap-2">
+          <Layers className="w-4 h-4 animate-spin text-indigo-600" />
+          <span>Synchronizing Security Ledger Registers...</span>
         </div>
       </div>
     );
@@ -367,14 +384,22 @@ export default function BulkStock({ onBack, refreshMetrics }) {
     <div className="min-h-screen bg-[#F4F3ED] text-[#111111] p-4 md:p-8 font-sans antialiased pb-24">
       <div className="max-w-6xl mx-auto">
         
-        <button onClick={onBack} className="text-[#3F51B5] font-bold text-xs tracking-wider uppercase mb-2 block hover:opacity-80">
-          &larr; {t('back') || 'Back'}
+        {/* Back Button */}
+        <button 
+          type="button"
+          onClick={onBack} 
+          className="inline-flex items-center gap-1.5 text-indigo-600 font-extrabold text-xs tracking-wider uppercase mb-3 hover:text-indigo-800 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>{t('back') || 'Back'}</span>
         </button>
         
         <div className="mb-6">
-          <h1 className="text-xl font-black tracking-tight text-slate-900">Bulk Stock Supply Management</h1>
+          <h1 className="text-xl font-black tracking-tight text-slate-900 flex items-center gap-2">
+            <span>Bulk Stock Supply Management</span>
+          </h1>
           <p className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400 mt-0.5">
-            Active Workspace: <span className="text-[#3F51B5]">{userRole} context</span>
+            Active Workspace: <span className="text-indigo-600">{userRole} context</span>
           </p>
         </div>
 
@@ -384,16 +409,19 @@ export default function BulkStock({ onBack, refreshMetrics }) {
           {/* Form Panel */}
           {isAdmin && (
             <div className="bg-white p-6 rounded-[28px] shadow-sm border border-slate-100 lg:col-span-1 h-fit">
-              <h2 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-4">Log Incoming Shipment</h2>
+              <div className="flex items-center gap-2 mb-4">
+                <PackagePlus className="w-4 h-4 text-indigo-600" />
+                <h2 className="text-xs font-black uppercase tracking-wider text-slate-400">Log Incoming Shipment</h2>
+              </div>
               <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
                 <div>
                   <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Item Name</label>
-                  <input type="text" className="w-full p-3.5 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs text-slate-800" placeholder="e.g. Bags of Rice" value={name} onChange={e => setName(e.target.value)} />
+                  <input type="text" className="w-full p-3.5 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs text-slate-800 outline-none focus:border-indigo-300 transition-colors" placeholder="e.g. Bags of Rice" value={name} onChange={e => setName(e.target.value)} />
                 </div>
 
                 <div>
                   <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Package Type</label>
-                  <select className="w-full p-3.5 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs text-slate-800 cursor-pointer" value={packageType} onChange={e => setPackageType(e.target.value)}>
+                  <select className="w-full p-3.5 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs text-slate-800 cursor-pointer outline-none focus:border-indigo-300 transition-colors" value={packageType} onChange={e => setPackageType(e.target.value)}>
                     <option value="Bag">Bag</option>
                     <option value="Carton">Carton</option>
                     <option value="Box">Box</option>
@@ -404,30 +432,31 @@ export default function BulkStock({ onBack, refreshMetrics }) {
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Pkg Qty</label>
-                    <input type="number" min="1" className="w-full p-3.5 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs text-center text-slate-800" placeholder="10" value={packageQty} onChange={e => setPackageQty(e.target.value)} />
+                    <input type="number" min="1" className="w-full p-3.5 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs text-center text-slate-800 outline-none focus:border-indigo-300 transition-colors" placeholder="10" value={packageQty} onChange={e => setPackageQty(e.target.value)} />
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Units / Pkg</label>
-                    <input type="number" min="1" className="w-full p-3.5 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs text-center text-slate-800" placeholder="50" value={unitsPerPkg} onChange={e => setUnitsPerPkg(e.target.value)} />
+                    <input type="number" min="1" className="w-full p-3.5 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs text-center text-slate-800 outline-none focus:border-indigo-300 transition-colors" placeholder="50" value={unitsPerPkg} onChange={e => setUnitsPerPkg(e.target.value)} />
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Cost Price per Pkg (FCFA)</label>
-                  <input type="number" className="w-full p-3.5 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs text-slate-800" placeholder="15,000" value={costPricePerPkg} onChange={e => setCostPricePerPkg(e.target.value)} />
+                  <input type="number" className="w-full p-3.5 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs text-slate-800 outline-none focus:border-indigo-300 transition-colors" placeholder="15,000" value={costPricePerPkg} onChange={e => setCostPricePerPkg(e.target.value)} />
                 </div>
 
                 <div>
                   <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Destination Branch</label>
-                  <select className="w-full p-3.5 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs text-slate-800 cursor-pointer" value={selectedBranch} onChange={e => setSelectedBranch(e.target.value)}>
+                  <select className="w-full p-3.5 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs text-slate-800 cursor-pointer outline-none focus:border-indigo-300 transition-colors" value={selectedBranch} onChange={e => setSelectedBranch(e.target.value)}>
                     {branches.map(b => (
                       <option key={b.id} value={b.id}>{b.name}</option>
                     ))}
                   </select>
                 </div>
 
-                <button type="submit" disabled={loading} className="w-full mt-2 py-3.5 bg-slate-900 text-white rounded-xl font-bold text-xs uppercase tracking-wider disabled:opacity-50">
-                  {loading ? "Processing..." : "Commit Bulk Stock"}
+                <button type="submit" disabled={loading} className="w-full mt-2 py-3.5 bg-slate-900 hover:bg-indigo-600 text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-all active:scale-[0.99] disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm">
+                  <Plus className="w-4 h-4" />
+                  <span>{loading ? "Processing..." : "Commit Bulk Stock"}</span>
                 </button>
               </form>
             </div>
@@ -437,7 +466,7 @@ export default function BulkStock({ onBack, refreshMetrics }) {
           <div className={`bg-white rounded-[28px] border border-slate-100 shadow-sm overflow-hidden ${isAdmin ? 'lg:col-span-2' : 'lg:col-span-3'}`}>
             <div className="p-5 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
               <h2 className="font-extrabold text-xs text-slate-400 uppercase tracking-wider">Active Bulk Vault Balance Registers</h2>
-              <div className="bg-[#3F51B5] text-white px-2.5 py-0.5 rounded-full text-[10px] font-extrabold">{batches.length}</div>
+              <div className="bg-indigo-600 text-white px-2.5 py-0.5 rounded-full text-[10px] font-extrabold">{batches.length}</div>
             </div>
 
             <div className="divide-y divide-slate-100 p-5 max-h-[580px] overflow-y-auto">
@@ -448,8 +477,9 @@ export default function BulkStock({ onBack, refreshMetrics }) {
                   <div key={batch.id} className="flex flex-col sm:flex-row sm:items-center justify-between py-4 gap-3">
                     <div className="flex-1">
                       <h4 className="font-bold text-sm text-slate-800">{batch.name}</h4>
-                      <p className="text-[10px] font-medium text-slate-400 mt-0.5 uppercase tracking-wide">
-                        📦 Lot Config: {batch.package_quantity} {batch.package_type}(s) &times; {batch.units_per_package} items
+                      <p className="text-[10px] font-medium text-slate-400 mt-0.5 uppercase tracking-wide flex items-center gap-1">
+                        <Package className="w-3 h-3 text-slate-400 shrink-0" />
+                        <span>Lot Config: {batch.package_quantity} {batch.package_type}(s) &times; {batch.units_per_package} items</span>
                       </p>
                       <p className="text-[9px] font-black text-indigo-600 uppercase mt-1">
                         Total Volume: {(batch.package_quantity * batch.units_per_package).toLocaleString()} Units Available
@@ -465,15 +495,45 @@ export default function BulkStock({ onBack, refreshMetrics }) {
                       </p>
                     </div>
 
-                    <div className="flex gap-1.5 self-end sm:self-center">
-                      <button onClick={() => requestAccess('take', batch)} className="px-2.5 py-1.5 bg-emerald-50 text-emerald-700 font-black text-[10px] rounded-lg uppercase">
-                        Take Packages
+                    {/* Action Buttons */}
+                    <div className="flex flex-wrap gap-1.5 self-end sm:self-center">
+                      <button 
+                        type="button"
+                        onClick={() => requestAccess('take', batch)} 
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 border border-emerald-100/80 text-emerald-700 hover:bg-emerald-100 font-black text-[10px] rounded-xl uppercase transition-colors active:scale-95"
+                      >
+                        <MinusCircle className="w-3 h-3" />
+                        <span>Take</span>
                       </button>
+                      
                       {(isAdmin || isManager) && (
                         <>
-                          <button onClick={() => requestAccess('refill', batch)} className="px-2.5 py-1.5 bg-blue-50 text-blue-700 font-black text-[10px] rounded-lg uppercase">Refill</button>
-                          <button onClick={() => requestAccess('edit', batch)} className="px-2.5 py-1.5 bg-slate-100 text-slate-600 font-black text-[10px] rounded-lg uppercase">Edit</button>
-                          <button onClick={() => requestAccess('delete', batch)} className="px-2.5 py-1.5 bg-red-50 text-red-600 font-black text-[10px] rounded-lg uppercase">Delete</button>
+                          <button 
+                            type="button"
+                            onClick={() => requestAccess('refill', batch)} 
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-blue-50 border border-blue-100/80 text-blue-700 hover:bg-blue-100 font-black text-[10px] rounded-xl uppercase transition-colors active:scale-95"
+                          >
+                            <PlusCircle className="w-3 h-3" />
+                            <span>Refill</span>
+                          </button>
+                          
+                          <button 
+                            type="button"
+                            onClick={() => requestAccess('edit', batch)} 
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 border border-slate-200/80 text-slate-700 hover:bg-slate-200 font-black text-[10px] rounded-xl uppercase transition-colors active:scale-95"
+                          >
+                            <Edit3 className="w-3 h-3 text-slate-500" />
+                            <span>Edit</span>
+                          </button>
+                          
+                          <button 
+                            type="button"
+                            onClick={() => requestAccess('delete', batch)} 
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-rose-50 border border-rose-100/80 text-rose-600 hover:bg-rose-100 font-black text-[10px] rounded-xl uppercase transition-colors active:scale-95"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            <span>Delete</span>
+                          </button>
                         </>
                       )}
                     </div>
@@ -487,7 +547,10 @@ export default function BulkStock({ onBack, refreshMetrics }) {
           <div className="bg-white rounded-[28px] border border-slate-100 shadow-sm p-5 lg:col-span-1 h-fit max-h-[640px] flex flex-col">
             <div className="pb-3 border-b border-slate-50 mb-3 flex items-center justify-between">
               <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Manager Activity Trail Logs</h3>
-              <span className="px-2 py-0.5 bg-red-50 text-red-600 font-black text-[8px] rounded-md animate-pulse">LIVE MONITOR</span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-rose-50 border border-rose-100 text-rose-600 font-black text-[8px] rounded-md">
+                <Activity className="w-2.5 h-2.5 animate-pulse" />
+                <span>LIVE MONITOR</span>
+              </span>
             </div>
             
             <div className="overflow-y-auto divide-y divide-slate-50 flex-1 pr-1">
@@ -495,7 +558,6 @@ export default function BulkStock({ onBack, refreshMetrics }) {
                 <p className="text-[11px] text-slate-400 italic py-8 text-center">No structural log history found.</p>
               ) : (
                 auditLogs.map((log) => {
-                  // Direct mappings from your precise new Supabase layout columns
                   const personName = log.performed_by_name || 'System User';
                   const itemName = log.item_name || 'Unknown';
                   const quantityChanged = log.package_qty_changed || 0;
@@ -507,7 +569,7 @@ export default function BulkStock({ onBack, refreshMetrics }) {
                         <span className="text-slate-700 truncate">{personName}</span>
                         <span className={`text-[8px] px-1.5 py-0.5 rounded font-black flex-shrink-0 ${
                           log.action_type === 'TAKEN' ? 'bg-amber-50 text-amber-700' :
-                          log.action_type === 'DELETE' ? 'bg-red-50 text-red-700' :
+                          log.action_type === 'DELETE' ? 'bg-rose-50 text-rose-700' :
                           log.action_type === 'REFILL' ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-700'
                         }`}>
                           {log.action_type}
@@ -522,8 +584,9 @@ export default function BulkStock({ onBack, refreshMetrics }) {
                           {log.old_value} &rarr; {log.new_value}
                         </p>
                       )}
-                      <p className="text-[8px] text-slate-400 font-semibold mt-1">
-                        ⏱️ {timeLogged}
+                      <p className="text-[8px] text-slate-400 font-semibold mt-1 flex items-center gap-1">
+                        <Clock className="w-2.5 h-2.5 text-slate-400" />
+                        <span>{timeLogged}</span>
                       </p>
                     </div>
                   );
@@ -538,20 +601,34 @@ export default function BulkStock({ onBack, refreshMetrics }) {
         {showPasswordGate && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]">
             <div className="bg-white w-full max-w-xs rounded-[32px] p-8 shadow-2xl text-center">
-              <div className="w-12 h-12 bg-slate-900 text-white rounded-2xl flex items-center justify-center mx-auto mb-4">🔒</div>
+              <div className="w-12 h-12 bg-slate-950 text-white rounded-2xl flex items-center justify-center mx-auto mb-4 border border-slate-800 shadow-inner">
+                <Lock className="w-5 h-5 text-indigo-400" />
+              </div>
               <h3 className="text-sm font-black text-slate-900 uppercase mb-2">Admin Verification</h3>
               <p className="text-[10px] font-bold text-slate-400 uppercase mb-6 leading-relaxed">Please enter the security key.</p>
               <input 
                 type="password" 
                 autoFocus
-                className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl text-center font-black text-lg tracking-[1em] outline-none"
+                className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl text-center font-black text-lg tracking-[1em] outline-none focus:border-indigo-500 transition-colors mb-4"
                 value={securityPassword}
                 onChange={e => setSecurityPassword(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleVerifyAndProceed()}
               />
               <div className="flex gap-2">
-                <button onClick={() => { setShowPasswordGate(false); setSecurityPassword(''); }} className="flex-1 py-3 bg-slate-100 text-slate-500 rounded-xl text-[10px] font-bold uppercase">Cancel</button>
-                <button onClick={handleVerifyAndProceed} className="flex-1 py-3 bg-slate-900 text-white rounded-xl text-[10px] font-bold uppercase">Verify</button>
+                <button 
+                  type="button"
+                  onClick={() => { setShowPasswordGate(false); setSecurityPassword(''); }} 
+                  className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-[10px] font-bold uppercase transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="button"
+                  onClick={handleVerifyAndProceed} 
+                  className="flex-1 py-3 bg-slate-950 hover:bg-indigo-600 text-white rounded-xl text-[10px] font-bold uppercase transition-colors shadow-sm"
+                >
+                  Verify
+                </button>
               </div>
             </div>
           </div>
@@ -560,21 +637,53 @@ export default function BulkStock({ onBack, refreshMetrics }) {
         {/* Action Modals (Take/Refill/Edit) */}
         {activeModal && (
           <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-            <div className="bg-white w-full max-w-sm rounded-[32px] p-8 shadow-xl">
-              <h3 className="text-xs font-black uppercase text-slate-900 mb-6">
+            <div className="bg-white w-full max-w-sm rounded-[32px] p-8 shadow-xl relative">
+              <button 
+                type="button"
+                onClick={closeOperationalModals} 
+                className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+
+              <h3 className="text-xs font-black uppercase text-slate-900 mb-6 pr-6">
                 {activeModal === 'take' ? `Retrieve from Bulk: ${selectedBatch?.name}` : activeModal === 'refill' ? `Refill Inventory: ${selectedBatch?.name}` : 'Edit Entry Name'}
               </h3>
               
               {activeModal === 'edit' ? (
-                <input type="text" className="w-full p-4 bg-slate-100 rounded-2xl font-bold text-sm outline-none mb-4" value={modalNameInput} onChange={e => setModalNameInput(e.target.value)} />
+                <input 
+                  type="text" 
+                  className="w-full p-4 bg-slate-100 rounded-2xl font-bold text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition-all mb-4" 
+                  value={modalNameInput} 
+                  onChange={e => setModalNameInput(e.target.value)} 
+                />
               ) : (
-                <input type="number" min="1" placeholder={activeModal === 'take' ? "Packages Count to Take" : "Quantity to Add"} className="w-full p-4 bg-slate-100 rounded-2xl font-black text-sm outline-none mb-4" value={modalQuantityInput} onChange={e => setModalQuantityInput(e.target.value)} />
+                <input 
+                  type="number" 
+                  min="1" 
+                  placeholder={activeModal === 'take' ? "Packages Count to Take" : "Quantity to Add"} 
+                  className="w-full p-4 bg-slate-100 rounded-2xl font-black text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition-all mb-4" 
+                  value={modalQuantityInput} 
+                  onChange={e => setModalQuantityInput(e.target.value)} 
+                />
               )}
 
-              <button onClick={activeModal === 'take' ? handleTakePackages : activeModal === 'refill' ? handleRefillStock : handleEditRecord} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest">
-                Confirm Action
+              <button 
+                type="button"
+                onClick={activeModal === 'take' ? handleTakePackages : activeModal === 'refill' ? handleRefillStock : handleEditRecord} 
+                className="w-full py-4 bg-slate-950 hover:bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-1.5 shadow-md"
+              >
+                <Check className="w-3.5 h-3.5" />
+                <span>Confirm Action</span>
               </button>
-              <button onClick={closeOperationalModals} className="w-full mt-2 text-[10px] font-bold text-slate-400 uppercase py-2">Close</button>
+              
+              <button 
+                type="button"
+                onClick={closeOperationalModals} 
+                className="w-full mt-2 text-[10px] font-bold text-slate-400 uppercase py-2 hover:text-slate-600 transition-colors"
+              >
+                Close
+              </button>
             </div>
           </div>
         )}
