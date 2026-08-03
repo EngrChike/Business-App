@@ -17,6 +17,12 @@ import { useLanguage } from '../../context/LanguageContext.jsx';
 import { supabase } from '../../api/supabaseClient';
 import { createClient } from '@supabase/supabase-js';
 
+// Helper to robustly check active status (handles nulls, booleans, and string booleans)
+const checkIsActive = (val) => {
+  if (val === false || val === 'false' || val === 0 || val === '0') return false;
+  return true; // null, undefined, true, "true" all default to active
+};
+
 // Isolated authentication client to provision accounts without overwriting current session
 const provisioningClient = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -197,12 +203,14 @@ export default function StaffManagement({ onBack, refreshMetrics }) {
     try {
       const updatedBranchValue = targetBranchId === "" ? null : targetBranchId;
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('profiles')
         .update({ branch_id: updatedBranchValue })
-        .eq('id', profileId);
+        .eq('id', profileId)
+        .select(); // Append .select() to verify the update
 
       if (error) throw error;
+      if (!data || data.length === 0) throw new Error("Update blocked by database security policies.");
 
       setStaffList(prev => prev.map(staff => 
         staff.id === profileId ? { ...staff, branch_id: updatedBranchValue } : staff
@@ -218,12 +226,14 @@ export default function StaffManagement({ onBack, refreshMetrics }) {
   const handleRoleChange = async (profileId, targetRole) => {
     setMessage('');
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('profiles')
         .update({ role: targetRole })
-        .eq('id', profileId);
+        .eq('id', profileId)
+        .select();
 
       if (error) throw error;
+      if (!data || data.length === 0) throw new Error("Update blocked by database security policies.");
 
       setStaffList(prev => prev.map(staff => 
         staff.id === profileId ? { ...staff, role: targetRole } : staff
@@ -239,8 +249,8 @@ export default function StaffManagement({ onBack, refreshMetrics }) {
   const handleToggleStaffAccess = async (profileId, currentStatus) => {
     setMessage('');
     
-    // Explicitly handle null/undefined as active (true)
-    const isCurrentlyActive = currentStatus !== false; 
+    // Use the safe parser to evaluate current status accurately
+    const isCurrentlyActive = checkIsActive(currentStatus); 
     const nextStatus = !isCurrentlyActive;
 
     const promptMessage = isCurrentlyActive 
@@ -250,12 +260,19 @@ export default function StaffManagement({ onBack, refreshMetrics }) {
     if (!window.confirm(promptMessage)) return;
 
     try {
-      const { error } = await supabase
+      // Append .select() to force a return object to catch silent RLS failures
+      const { data, error } = await supabase
         .from('profiles')
         .update({ is_active: nextStatus })
-        .eq('id', profileId);
+        .eq('id', profileId)
+        .select(); 
 
       if (error) throw error;
+      
+      // If data is empty, it means Row Level Security blocked the update silently
+      if (!data || data.length === 0) {
+        throw new Error("Update blocked by database security policies (RLS).");
+      }
 
       setStaffList(prev => prev.map(staff => 
         staff.id === profileId ? { ...staff, is_active: nextStatus } : staff
@@ -503,7 +520,9 @@ export default function StaffManagement({ onBack, refreshMetrics }) {
                   const fallbackName = staff.email ? staff.email.split('@')[0].toUpperCase() : 'New Staff';
                   const staffDisplayName = staff.full_name || staff.name || fallbackName;
                   const staffDisplayEmail = staff.email || 'No email attached';
-                  const isStaffActive = staff.is_active !== false;
+                  
+                  // Use the safe evaluation parser for rendering
+                  const isStaffActive = checkIsActive(staff.is_active);
 
                   return (
                     <tr key={staff.id} className={`hover:bg-slate-50/50 transition-colors ${!isStaffActive ? 'bg-rose-50/30' : ''}`}>
@@ -541,7 +560,10 @@ export default function StaffManagement({ onBack, refreshMetrics }) {
                       <td className="p-5 text-center">
                         <button
                           type="button"
-                          onClick={() => handleToggleStaffAccess(staff.id, staff.is_active)}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            handleToggleStaffAccess(staff.id, staff.is_active);
+                          }}
                           className={`px-3.5 py-2 rounded-xl font-black text-[10px] uppercase tracking-wider transition-all shadow-xs active:scale-95 inline-flex items-center gap-1.5 ${
                             isStaffActive 
                               ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200' 
