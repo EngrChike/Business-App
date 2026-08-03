@@ -1,4 +1,13 @@
 import React, { useState } from "react";
+import { 
+  Mail, 
+  Lock, 
+  Globe, 
+  AlertCircle, 
+  ArrowRight, 
+  Loader2, 
+  ShieldCheck 
+} from "lucide-react";
 import { useLanguage } from "../../context/LanguageContext.jsx"; 
 import { supabase } from "../../api/supabaseClient";
 
@@ -73,7 +82,7 @@ export default function Login() {
         const stringRole = userProfile.role ? String(userProfile.role).toLowerCase().trim() : '';
         if (stringRole !== 'admin' && stringRole !== 'manager' && stringRole !== 'staff') {
           await supabase.auth.signOut();
-          setErrMessage('🔒 Configuration Error: Access role layout structure is unrecognizable.');
+          setErrMessage('Configuration Error: Access role layout structure is unrecognizable.');
           return;
         }
       }
@@ -85,63 +94,92 @@ export default function Login() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-[#F4F3ED] p-6 relative font-sans antialiased">
+    <div className="flex flex-col items-center justify-center min-h-screen bg-[#F4F3ED] p-6 relative font-sans antialiased selection:bg-neutral-900 selection:text-white">
       
       {/* Global Unified Language Toggle */}
       <button 
         type="button"
         onClick={toggleLanguage}
-        className="absolute top-6 right-6 font-black text-[10px] text-slate-400 uppercase tracking-widest border border-slate-200 bg-white shadow-sm px-4 py-2 rounded-xl hover:bg-slate-50 transition-all active:scale-95 z-50"
+        className="absolute top-6 right-6 flex items-center gap-2 font-black text-[10px] text-slate-600 uppercase tracking-widest border border-slate-200/80 bg-white/90 backdrop-blur-md shadow-sm px-4 py-2.5 rounded-2xl hover:bg-slate-100/80 transition-all active:scale-95 z-50"
       >
-        {language === 'en' ? '🇺🇸 EN' : '🇫🇷 FR'}
+        <Globe className="w-3.5 h-3.5 text-slate-500" />
+        <span>{language === 'en' ? '🇺🇸 EN' : '🇫🇷 FR'}</span>
       </button>
 
-      <div className="w-full max-w-md bg-white rounded-[40px] shadow-sm p-8 md:p-10 border border-slate-100">
+      <div className="w-full max-w-md bg-white rounded-[36px] shadow-xl p-8 md:p-10 border border-slate-100/80 relative overflow-hidden">
         
-        {/* Brand Header */}
-        <h1 className="text-3xl font-black text-[#3F51B5] text-center mb-1 tracking-tighter italic">
-          DON CHIKE <span className="text-slate-900 not-italic">ELITE</span>
-        </h1>
-        <p className="text-slate-400 text-center mb-10 text-[10px] font-bold uppercase tracking-widest">
-          {translate('login_subtitle', 'Secure Business Management')}
-        </p>
+        {/* Brand Emblem & Header */}
+        <div className="flex flex-col items-center text-center mb-8">
+          <div className="w-14 h-14 bg-slate-950 text-[#D4AF37] rounded-2xl flex items-center justify-center shadow-md mb-4 border border-slate-800">
+            <ShieldCheck className="w-7 h-7" />
+          </div>
+          
+          <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight uppercase italic leading-none mb-2">
+            DON CHIKE <span className="text-[#3F51B5] not-italic">ELITE</span>
+          </h1>
+          
+          <p className="text-slate-400 text-[10px] font-bold uppercase tracking-[0.2em]">
+            {translate('login_subtitle', 'Secure Business Management')}
+          </p>
+        </div>
 
-        {/* Diagnostic Security Alert Blocks */}
+        {/* Security Diagnostic Alert Block */}
         {errMessage && (
-          <div className="p-4 rounded-2xl mb-6 text-xs font-black uppercase text-center tracking-wider bg-red-50 text-[#FF5A50] border border-red-100">
-            ❌ {errMessage}
+          <div className="flex items-center gap-3 p-4 rounded-2xl mb-6 text-xs font-bold text-red-600 bg-red-50/80 border border-red-200/60 shadow-sm animate-fade-in">
+            <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
+            <span className="leading-snug">{errMessage}</span>
           </div>
         )}
         
         {/* Core Input Form Controls */}
         <form onSubmit={handleLoginSubmit} className="space-y-4">
-          <div>
+          
+          {/* Email Field with Vector Icon */}
+          <div className="relative flex items-center">
+            <div className="absolute left-4 text-slate-400 pointer-events-none">
+              <Mail className="w-5 h-5" />
+            </div>
             <input 
               type="email" 
               placeholder={translate('staff_email_label', 'Email Address')} 
-              className="w-full p-5 bg-slate-50 text-slate-800 rounded-[20px] text-sm font-bold outline-none border border-transparent focus:border-[#3F51B5] focus:bg-white transition-all shadow-inner" 
+              className="w-full pl-12 pr-5 py-4 bg-slate-50 text-slate-800 rounded-2xl text-sm font-bold outline-none border border-slate-200/60 focus:border-[#3F51B5] focus:bg-white focus:ring-4 focus:ring-[#3F51B5]/10 transition-all placeholder:text-slate-400 placeholder:font-medium" 
               value={email}
               onChange={(e) => setEmail(e.target.value)} 
               required 
             />
           </div>
           
-          <div>
+          {/* Password Field with Vector Icon */}
+          <div className="relative flex items-center">
+            <div className="absolute left-4 text-slate-400 pointer-events-none">
+              <Lock className="w-5 h-5" />
+            </div>
             <input 
               type="password" 
               placeholder={translate('secure_password_label', 'Secure Password')} 
-              className="w-full p-5 bg-slate-50 text-slate-800 rounded-[20px] text-sm font-bold outline-none border border-transparent focus:border-[#3F51B5] focus:bg-white transition-all shadow-inner" 
+              className="w-full pl-12 pr-5 py-4 bg-slate-50 text-slate-800 rounded-2xl text-sm font-bold outline-none border border-slate-200/60 focus:border-[#3F51B5] focus:bg-white focus:ring-4 focus:ring-[#3F51B5]/10 transition-all placeholder:text-slate-400 placeholder:font-medium" 
               value={password}
               onChange={(e) => setPassword(e.target.value)} 
               required 
             />
           </div>
 
+          {/* Action Button with Loading Spinner & Animated Arrow */}
           <button 
             disabled={loading} 
-            className="w-full bg-[#1C1B1F] text-white font-black py-5 rounded-[20px] transition-all shadow-md hover:opacity-90 active:scale-[0.98] uppercase text-xs tracking-widest disabled:opacity-50 mt-2"
+            className="w-full flex items-center justify-center gap-2 bg-slate-950 text-white font-black py-4.5 rounded-2xl transition-all shadow-lg hover:bg-slate-800 active:scale-[0.98] uppercase text-xs tracking-[0.15em] disabled:opacity-50 mt-2 border border-slate-800 group"
           >
-            {loading ? translate('provisioning_msg', 'Authenticating...') : translate('authorize_staff_btn', 'Login to Suite')}
+            {loading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin text-[#D4AF37]" />
+                <span>{translate('provisioning_msg', 'Authenticating...')}</span>
+              </>
+            ) : (
+              <>
+                <span>{translate('authorize_staff_btn', 'Login to Suite')}</span>
+                <ArrowRight className="w-4 h-4 text-[#D4AF37] group-hover:translate-x-1 transition-transform" />
+              </>
+            )}
           </button>
         </form>
       </div>
