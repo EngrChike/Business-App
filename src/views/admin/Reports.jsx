@@ -4,8 +4,6 @@ import {
   ArrowLeft, 
   Receipt, 
   Printer, 
-  Globe, 
-  MapPin, 
   TrendingUp, 
   TrendingDown, 
   AlertTriangle, 
@@ -14,9 +12,12 @@ import {
   ShieldCheck, 
   Loader2, 
   ClipboardList,
-  Building2,
   Calendar,
-  X
+  X,
+  Folder,
+  FolderOpen,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext.jsx';
 import { supabase } from '../../api/supabaseClient';
@@ -31,11 +32,30 @@ export default function Reports({ onBack }) {
   const [loading, setLoading] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  // Print Modal State
+  // Grouping Logic Tools
+  const getMonthKey = (dateValue) => {
+    const d = new Date(dateValue);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  };
+
+  const currentMonthKey = getMonthKey(new Date());
+
+  // Print & Folder Modal States
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [printStartMonth, setPrintStartMonth] = useState("");
   const [printEndMonth, setPrintEndMonth] = useState("");
   const [isPrintingMode, setIsPrintingMode] = useState(false);
+  
+  // Folder Expansion State (Default: Current Month is open)
+  const [expandedMonths, setExpandedMonths] = useState([currentMonthKey]);
+
+  const toggleMonth = (monthKey) => {
+    setExpandedMonths(prev => 
+      prev.includes(monthKey) 
+        ? prev.filter(m => m !== monthKey) 
+        : [...prev, monthKey]
+    );
+  };
 
   const fetchLedgers = useCallback(async (branchFilter, profile, currentIsAdmin) => {
     setLoading(true);
@@ -202,12 +222,6 @@ export default function Reports({ onBack }) {
     }
   };
 
-  // Grouping Logic for Monthly Reports
-  const getMonthKey = (dateString) => {
-    const d = new Date(dateString);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-  };
-
   const formatMonthName = (monthKey) => {
     const [year, month] = monthKey.split('-');
     const date = new Date(year, month - 1);
@@ -226,7 +240,6 @@ export default function Reports({ onBack }) {
 
   const availableMonths = Object.keys(groupedTransactions).sort((a, b) => b.localeCompare(a));
 
-  // Filter months for display based on print range (if printing)
   const filteredMonthKeys = availableMonths.filter(monthKey => {
     if (!isPrintingMode) return true;
     let include = true;
@@ -235,7 +248,6 @@ export default function Reports({ onBack }) {
     return include;
   });
 
-  // Calculate top-level metrics only for the filtered/displayed months
   const displayedTransactions = filteredMonthKeys.flatMap(key => groupedTransactions[key]);
   
   const totalRevenue = displayedTransactions.filter(t => !t.isExpense && t.payment_status === 'paid').reduce((sum, s) => sum + Number(s.total_amount || 0), 0);
@@ -246,11 +258,11 @@ export default function Reports({ onBack }) {
   const handlePrintAction = () => {
     setIsPrintingMode(true);
     setIsPrintModalOpen(false);
-    // Slight delay to allow React to render the filtered view before printing
+    // Delay ensures React conditionally renders all print-selected folders as open before browser triggers print dialog
     setTimeout(() => {
       window.print();
-      setIsPrintingMode(false); // Reset view after print dialog closes
-    }, 500);
+      setIsPrintingMode(false);
+    }, 600);
   };
 
   const cleanTranslation = (key, fallback) => {
@@ -261,7 +273,7 @@ export default function Reports({ onBack }) {
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans text-slate-800 pb-24 max-w-6xl mx-auto antialiased">
       
-      {/* HEADER HUB WITH BRANCH CONTROLS & PRINT ACTION */}
+      {/* HEADER HUB */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 border-b border-slate-200/80 pb-5 print:hidden">
         <div>
           <button 
@@ -366,7 +378,7 @@ export default function Reports({ onBack }) {
         </div>
       )}
 
-      {/* PRINT HEADER ONLY VISIBLE WHEN PRINTING */}
+      {/* PRINT HEADER DOCUMENTATION */}
       <div className="hidden print:block mb-8 text-center border-b border-slate-200 pb-6">
         <h1 className="text-2xl font-black uppercase tracking-tight text-slate-900">DonChike Cosmetics</h1>
         <h2 className="text-lg font-bold text-slate-700 mt-1">Official Audit & Ledger Statement</h2>
@@ -375,7 +387,6 @@ export default function Reports({ onBack }) {
         </p>
       </div>
 
-      {/* LOADING STATE MASK */}
       {loading && (
         <div className="min-h-[280px] bg-white rounded-[32px] border border-slate-200/80 p-12 flex flex-col items-center justify-center text-xs font-black uppercase text-slate-400 tracking-widest gap-3 shadow-xs my-6 print:hidden">
           <Loader2 className="w-7 h-7 animate-spin text-indigo-600" />
@@ -383,10 +394,9 @@ export default function Reports({ onBack }) {
         </div>
       )}
 
-      {/* OVERALL METRICS SUMMARY GRID */}
+      {/* GLOBAL METRICS FOR SELECTED RANGE */}
       {!loading && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          
           <div className="bg-white p-6 rounded-[28px] shadow-xs border border-slate-200/80 flex flex-col justify-between min-h-[136px] transition-all hover:border-slate-300">
             <div className="flex justify-between items-center">
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Verified Inflow</span>
@@ -439,141 +449,145 @@ export default function Reports({ onBack }) {
               <span className="text-xs font-extrabold text-emerald-600 opacity-80 ml-1.5">FCFA</span>
             </div>
           </div>
-
         </div>
       )}
 
-      {/* MONTHLY TRANSACTION GROUPS */}
+      {/* MONTHLY ACCORDION FOLDERS */}
       {!loading && filteredMonthKeys.length > 0 ? (
-        <div className="space-y-12">
+        <div className="space-y-4">
           {filteredMonthKeys.map((monthKey) => {
             const monthData = groupedTransactions[monthKey];
             
-            // Sub-metrics per month
+            // Check if folder is expanded. During printing, expand them all.
+            const isExpanded = isPrintingMode || expandedMonths.includes(monthKey);
+            
             const monthRev = monthData.filter(t => !t.isExpense && t.payment_status === 'paid').reduce((sum, s) => sum + Number(s.total_amount || 0), 0);
             const monthExp = monthData.filter(t => t.isExpense).reduce((sum, e) => sum + Number(e.amount || 0), 0);
             const monthNet = monthRev - monthExp;
 
             return (
-              <div key={monthKey} className="bg-white rounded-[32px] border border-slate-200/80 shadow-xs overflow-hidden break-inside-avoid">
-                {/* MONTH HEADER */}
-                <div className="p-6 bg-slate-50/50 border-b border-slate-100 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-                  <div className="flex items-center gap-3">
-                    <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs text-slate-800">
-                      <Calendar className="w-5 h-5" />
+              <div key={monthKey} className={`bg-white rounded-[24px] border transition-colors shadow-xs overflow-hidden break-inside-avoid ${isExpanded ? 'border-indigo-200 shadow-sm' : 'border-slate-200/80 hover:border-slate-300'}`}>
+                
+                {/* FOLDER BUTTON HEADER */}
+                <div 
+                  onClick={() => toggleMonth(monthKey)}
+                  className="p-5 lg:px-6 bg-slate-50/50 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 cursor-pointer hover:bg-slate-100/50 transition-colors group select-none"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className={`p-3 rounded-xl border shadow-xs transition-colors ${isExpanded ? 'bg-indigo-50 border-indigo-100 text-indigo-600' : 'bg-white border-slate-200 text-slate-400 group-hover:border-slate-300 group-hover:text-slate-600'}`}>
+                      {isExpanded ? <FolderOpen className="w-5 h-5" /> : <Folder className="w-5 h-5" />}
                     </div>
                     <div>
-                      <h3 className="text-lg font-black text-slate-900 tracking-tight">{formatMonthName(monthKey)}</h3>
+                      <h3 className="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
+                        {formatMonthName(monthKey)}
+                      </h3>
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">{monthData.length} Transactions</p>
                     </div>
                   </div>
                   
-                  {/* MONTH QUICK STATS */}
-                  <div className="flex items-center gap-4 text-xs font-black tracking-tight">
-                    <div className="flex flex-col">
-                      <span className="text-[9px] text-slate-400 uppercase tracking-widest">Inflow</span>
-                      <span className="text-emerald-600">+{monthRev.toLocaleString()}</span>
+                  <div className="flex flex-row items-center justify-between w-full lg:w-auto gap-6 lg:gap-8">
+                    <div className="flex items-center gap-4 text-xs font-black tracking-tight">
+                      <div className="flex flex-col">
+                        <span className="text-[9px] text-slate-400 uppercase tracking-widest">Inflow</span>
+                        <span className="text-emerald-600">+{monthRev.toLocaleString()}</span>
+                      </div>
+                      <div className="w-px h-6 bg-slate-200"></div>
+                      <div className="flex flex-col">
+                        <span className="text-[9px] text-slate-400 uppercase tracking-widest">Outflow</span>
+                        <span className="text-rose-600">-{monthExp.toLocaleString()}</span>
+                      </div>
+                      <div className="w-px h-6 bg-slate-200"></div>
+                      <div className="flex flex-col">
+                        <span className="text-[9px] text-slate-400 uppercase tracking-widest">Net</span>
+                        <span className={monthNet >= 0 ? "text-slate-900" : "text-rose-600"}>{monthNet.toLocaleString()}</span>
+                      </div>
                     </div>
-                    <div className="w-px h-6 bg-slate-200"></div>
-                    <div className="flex flex-col">
-                      <span className="text-[9px] text-slate-400 uppercase tracking-widest">Outflow</span>
-                      <span className="text-rose-600">-{monthExp.toLocaleString()}</span>
-                    </div>
-                    <div className="w-px h-6 bg-slate-200"></div>
-                    <div className="flex flex-col">
-                      <span className="text-[9px] text-slate-400 uppercase tracking-widest">Net</span>
-                      <span className={monthNet >= 0 ? "text-slate-900" : "text-rose-600"}>{monthNet.toLocaleString()}</span>
+
+                    {/* FOLDER CHEVRON ICON */}
+                    <div className="text-slate-300 group-hover:text-indigo-600 transition-colors print:hidden">
+                      {isExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
                     </div>
                   </div>
                 </div>
 
-                {/* TABLE */}
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 bg-white">
-                        <th className="p-5">Date & Time</th>
-                        <th className="p-5">Type</th>
-                        <th className="p-5">Entity Description</th>
-                        <th className="p-5 text-right">Value Amount</th>
-                        <th className="p-5 text-center print:hidden">Ledger Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {monthData.map((item, idx) => (
-                        <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                          
-                          {/* DATE */}
-                          <td className="p-5 text-xs font-bold text-slate-700 whitespace-nowrap">
-                            {new Date(item.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })} 
-                            <span className="block text-[10px] text-slate-400 font-semibold mt-0.5">
-                              {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </span>
-                          </td>
-                          
-                          {/* TYPE */}
-                          <td className="p-5">
-                            <span className={`text-[9px] font-black px-2.5 py-1 rounded-lg tracking-wider border ${
-                              item.isExpense ? 'bg-rose-50 border-rose-100 text-rose-600' : 'bg-indigo-50 border-indigo-100 text-indigo-600'
-                            }`}>
-                              {item.isExpense ? 'EXPENSE' : 'SALE'}
-                            </span>
-                          </td>
-
-                          {/* DESCRIPTION & PARTIAL TRACKING */}
-                          <td className="p-5 font-extrabold text-slate-800 text-sm tracking-tight">
-                            {item.isExpense 
-                              ? (t(`cat_${item.category?.toLowerCase().replace(' ', '_')}`) || item.category) 
-                              : (item.inventory?.name || t('product_item_fallback') || 'Product Item')
-                            }
-                            {!item.isExpense && (
-                              <span className="block text-[10px] text-slate-400 font-bold normal-case mt-0.5">
-                                {t('client_label') || 'Client'}: {item.customer_name || t('walking_customer') || 'Walking Customer'}
-                              </span>
-                            )}
-                            {!item.isExpense && item.payment_status === 'debt' && Number(item.total_amount) < Number(item.total_price) && (
-                              <span className="mt-1.5 inline-flex items-center gap-1.5 text-[10px] text-indigo-700 font-black bg-indigo-50 border border-indigo-100/80 px-2.5 py-1 rounded-xl">
-                                <Clock className="w-3 h-3 text-indigo-600 shrink-0" />
-                                <span>Collected: {(Number(item.total_price) - Number(item.total_amount)).toLocaleString()} / Total: {Number(item.total_price).toLocaleString()} FCFA</span>
-                              </span>
-                            )}
-                          </td>
-
-                          {/* AMOUNT */}
-                          <td className={`p-5 text-right font-black text-sm tracking-tight ${item.isExpense ? 'text-rose-600' : 'text-slate-900'}`}>
-                            {item.isExpense ? '-' : '+'}{Math.floor(item.amount || item.total_amount || 0).toLocaleString()}
-                          </td>
-
-                          {/* ACTION / STATUS BADGE (HIDDEN ON PRINT) */}
-                          <td className="p-5 text-center print:hidden">
-                            {item.payment_status === 'debt' ? (
-                              isAdmin ? (
-                                <button 
-                                  onClick={() => handleSettle(item)} 
-                                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black px-3.5 py-2 rounded-xl shadow-xs active:scale-95 transition-all uppercase tracking-wider inline-flex items-center gap-1.5"
-                                >
-                                  <CheckCircle2 className="w-3.5 h-3.5" />
-                                  <span>{cleanTranslation('clear_total_balance_btn', 'Settle Account')}</span>
-                                </button>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 text-rose-600 font-black text-[10px] uppercase tracking-wider bg-rose-50 border border-rose-100 px-2.5 py-1 rounded-xl">
-                                  <AlertTriangle className="w-3 h-3 text-rose-500" />
-                                  <span>{t('payment_status_debt') || "Debt"}</span>
-                                </span>
-                              )
-                            ) : (
-                              <div className="inline-flex items-center justify-center gap-1.5 text-emerald-600 font-black text-xs uppercase tracking-wide bg-emerald-50/80 border border-emerald-100 px-3 py-1.5 rounded-xl">
-                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                                <span>Secure</span>
-                              </div>
-                            )}
-                          </td>
-
+                {/* EXPANDED FOLDER CONTENT (TABLE) */}
+                {isExpanded && (
+                  <div className="border-t border-slate-100 overflow-x-auto print:block">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 bg-white">
+                          <th className="p-5">Date & Time</th>
+                          <th className="p-5">Type</th>
+                          <th className="p-5">Entity Description</th>
+                          <th className="p-5 text-right">Value Amount</th>
+                          <th className="p-5 text-center print:hidden">Ledger Action</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {monthData.map((item, idx) => (
+                          <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                            <td className="p-5 text-xs font-bold text-slate-700 whitespace-nowrap">
+                              {new Date(item.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })} 
+                              <span className="block text-[10px] text-slate-400 font-semibold mt-0.5">
+                                {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </td>
+                            <td className="p-5">
+                              <span className={`text-[9px] font-black px-2.5 py-1 rounded-lg tracking-wider border ${
+                                item.isExpense ? 'bg-rose-50 border-rose-100 text-rose-600' : 'bg-indigo-50 border-indigo-100 text-indigo-600'
+                              }`}>
+                                {item.isExpense ? 'EXPENSE' : 'SALE'}
+                              </span>
+                            </td>
+                            <td className="p-5 font-extrabold text-slate-800 text-sm tracking-tight">
+                              {item.isExpense 
+                                ? (t(`cat_${item.category?.toLowerCase().replace(' ', '_')}`) || item.category) 
+                                : (item.inventory?.name || t('product_item_fallback') || 'Product Item')
+                              }
+                              {!item.isExpense && (
+                                <span className="block text-[10px] text-slate-400 font-bold normal-case mt-0.5">
+                                  {t('client_label') || 'Client'}: {item.customer_name || t('walking_customer') || 'Walking Customer'}
+                                </span>
+                              )}
+                              {!item.isExpense && item.payment_status === 'debt' && Number(item.total_amount) < Number(item.total_price) && (
+                                <span className="mt-1.5 inline-flex items-center gap-1.5 text-[10px] text-indigo-700 font-black bg-indigo-50 border border-indigo-100/80 px-2.5 py-1 rounded-xl">
+                                  <Clock className="w-3 h-3 text-indigo-600 shrink-0" />
+                                  <span>Collected: {(Number(item.total_price) - Number(item.total_amount)).toLocaleString()} / Total: {Number(item.total_price).toLocaleString()} FCFA</span>
+                                </span>
+                              )}
+                            </td>
+                            <td className={`p-5 text-right font-black text-sm tracking-tight ${item.isExpense ? 'text-rose-600' : 'text-slate-900'}`}>
+                              {item.isExpense ? '-' : '+'}{Math.floor(item.amount || item.total_amount || 0).toLocaleString()}
+                            </td>
+                            <td className="p-5 text-center print:hidden">
+                              {item.payment_status === 'debt' ? (
+                                isAdmin ? (
+                                  <button 
+                                    onClick={() => handleSettle(item)} 
+                                    className="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black px-3.5 py-2 rounded-xl shadow-xs active:scale-95 transition-all uppercase tracking-wider inline-flex items-center gap-1.5"
+                                  >
+                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                    <span>{cleanTranslation('clear_total_balance_btn', 'Settle Account')}</span>
+                                  </button>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 text-rose-600 font-black text-[10px] uppercase tracking-wider bg-rose-50 border border-rose-100 px-2.5 py-1 rounded-xl">
+                                    <AlertTriangle className="w-3 h-3 text-rose-500" />
+                                    <span>{t('payment_status_debt') || "Debt"}</span>
+                                  </span>
+                                )
+                              ) : (
+                                <div className="inline-flex items-center justify-center gap-1.5 text-emerald-600 font-black text-xs uppercase tracking-wide bg-emerald-50/80 border border-emerald-100 px-3 py-1.5 rounded-xl">
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                  <span>Secure</span>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -587,7 +601,6 @@ export default function Reports({ onBack }) {
           </div>
         )
       )}
-
     </div>
   );
 }
