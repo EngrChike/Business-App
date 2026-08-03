@@ -94,7 +94,7 @@ export default function Login() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-[#F4F3ED] p-6 relative font-sans antialiased selection:bg-neutral-900 selection:text-white">
+    <div className="flex flex-col items-center justify-center min-h-screen bg-[#F4F3ED] p-6 relative font-sans antialiased selection:bg-indigo-600 selection:text-white">
       
       {/* Global Unified Language Toggle */}
       <button 
@@ -106,7 +106,7 @@ export default function Login() {
         <span>{language === 'en' ? '🇺🇸 EN' : '🇫🇷 FR'}</span>
       </button>
 
-      <div className="w-full max-w-md bg-white rounded-[36px] shadow-xl p-8 md:p-10 border border-slate-100/80 relative overflow-hidden">
+      <div className="w-full max-w-md bg-white rounded-[36px] shadow-xl shadow-slate-200/50 p-8 md:p-10 border border-slate-100/80 relative overflow-hidden">
         
         {/* Brand Emblem & Header */}
         <div className="flex flex-col items-center text-center mb-8">
@@ -115,7 +115,7 @@ export default function Login() {
           </div>
           
           <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight uppercase italic leading-none mb-2">
-            DON CHIKE <span className="text-[#3F51B5] not-italic">ELITE</span>
+            DON CHIKE <span className="text-indigo-600 not-italic">ELITE</span>
           </h1>
           
           <p className="text-slate-400 text-[10px] font-bold uppercase tracking-[0.2em]">
@@ -134,7 +134,7 @@ export default function Login() {
         {/* Core Input Form Controls */}
         <form onSubmit={handleLoginSubmit} className="space-y-4">
           
-          {/* Email Field with Vector Icon */}
+          {/* Email Field */}
           <div className="relative flex items-center">
             <div className="absolute left-4 text-slate-400 pointer-events-none">
               <Mail className="w-5 h-5" />
@@ -142,14 +142,14 @@ export default function Login() {
             <input 
               type="email" 
               placeholder={translate('staff_email_label', 'Email Address')} 
-              className="w-full pl-12 pr-5 py-4 bg-slate-50 text-slate-800 rounded-2xl text-sm font-bold outline-none border border-slate-200/60 focus:border-[#3F51B5] focus:bg-white focus:ring-4 focus:ring-[#3F51B5]/10 transition-all placeholder:text-slate-400 placeholder:font-medium" 
+              className="w-full pl-12 pr-5 py-4 bg-slate-50 text-slate-800 rounded-2xl text-sm font-bold outline-none border border-slate-200/60 focus:border-indigo-600 focus:bg-white focus:ring-4 focus:ring-indigo-600/10 transition-all placeholder:text-slate-400 placeholder:font-medium" 
               value={email}
               onChange={(e) => setEmail(e.target.value)} 
               required 
             />
           </div>
           
-          {/* Password Field with Vector Icon */}
+          {/* Password Field */}
           <div className="relative flex items-center">
             <div className="absolute left-4 text-slate-400 pointer-events-none">
               <Lock className="w-5 h-5" />
@@ -157,29 +157,35 @@ export default function Login() {
             <input 
               type="password" 
               placeholder={translate('secure_password_label', 'Secure Password')} 
-              className="w-full pl-12 pr-5 py-4 bg-slate-50 text-slate-800 rounded-2xl text-sm font-bold outline-none border border-slate-200/60 focus:border-[#3F51B5] focus:bg-white focus:ring-4 focus:ring-[#3F51B5]/10 transition-all placeholder:text-slate-400 placeholder:font-medium" 
+              className="w-full pl-12 pr-5 py-4 bg-slate-50 text-slate-800 rounded-2xl text-sm font-bold outline-none border border-slate-200/60 focus:border-indigo-600 focus:bg-white focus:ring-4 focus:ring-indigo-600/10 transition-all placeholder:text-slate-400 placeholder:font-medium" 
               value={password}
               onChange={(e) => setPassword(e.target.value)} 
               required 
             />
           </div>
 
-          {/* Action Button with Loading Spinner & Animated Arrow */}
+          {/* Modernized Interactive Action Button */}
           <button 
+            type="submit"
             disabled={loading} 
-            className="w-full flex items-center justify-center gap-2 bg-slate-950 text-white font-black py-4.5 rounded-2xl transition-all shadow-lg hover:bg-slate-800 active:scale-[0.98] uppercase text-xs tracking-[0.15em] disabled:opacity-50 mt-2 border border-slate-800 group"
+            className="group relative w-full overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-indigo-800 py-4 px-6 text-white font-black text-xs uppercase tracking-[0.18em] shadow-lg shadow-indigo-600/25 hover:shadow-indigo-600/40 hover:scale-[1.01] active:scale-[0.98] transition-all duration-200 disabled:opacity-50 disabled:pointer-events-none mt-2"
           >
-            {loading ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin text-[#D4AF37]" />
-                <span>{translate('provisioning_msg', 'Authenticating...')}</span>
-              </>
-            ) : (
-              <>
-                <span>{translate('authorize_staff_btn', 'Login to Suite')}</span>
-                <ArrowRight className="w-4 h-4 text-[#D4AF37] group-hover:translate-x-1 transition-transform" />
-              </>
-            )}
+            {/* Shimmer Light Sweep Effect */}
+            <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out pointer-events-none" />
+
+            <div className="relative flex items-center justify-center gap-2.5">
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-indigo-200" />
+                  <span>{translate('provisioning_msg', 'Authenticating...')}</span>
+                </>
+              ) : (
+                <>
+                  <span>{translate('authorize_staff_btn', 'Login to Suite')}</span>
+                  <ArrowRight className="w-4 h-4 text-indigo-200 group-hover:translate-x-1 transition-transform duration-200" />
+                </>
+              )}
+            </div>
           </button>
         </form>
       </div>
