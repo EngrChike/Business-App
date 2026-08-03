@@ -11,14 +11,13 @@ import {
   Trash2, 
   Loader2, 
   ShieldCheck,
-  MapPin,
-  ClipboardList
+  MapPin
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext.jsx'; 
 import { supabase } from '../../api/supabaseClient';
 import { createClient } from '@supabase/supabase-js';
 
-// Instantiate an independent authentication engine with storage token mapping disabled.
+// Isolated authentication client to provision accounts without overwriting current session
 const provisioningClient = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY,
@@ -98,7 +97,7 @@ export default function StaffManagement({ onBack, refreshMetrics }) {
 
       } catch (err) {
         if (isMounted) setMessage("System Registry Init Error: " + err.message);
-      } font-bold {
+      } finally {
         if (isMounted) setLoadingLayout(false);
       }
     };
